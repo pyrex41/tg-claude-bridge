@@ -1,0 +1,603 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": "1",
+        "title": "Set up project environment and dependencies",
+        "description": "Initialize the Python project, install required libraries, and configure environment variables for bot token, user ID, and CLI command.",
+        "details": "Create a new Python project directory. Use pip to install python-telegram-bot and pexpect. Set up environment variables (e.g., via .env file) for TELEGRAM_BOT_TOKEN, ALLOWED_USER_ID, and CLI_COMMAND. Ensure Python 3.x compatibility. Pseudo-code: import os; bot_token = os.getenv('TELEGRAM_BOT_TOKEN'); etc.",
+        "testStrategy": "Verify installations by importing libraries without errors. Check environment variables are loaded correctly using print statements.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Python project directory",
+            "description": "Set up a new directory for the Python project to organize all files and dependencies.",
+            "dependencies": [],
+            "details": "Create a new folder named 'telegram_cli_bot' or similar in your workspace. Ensure it is empty and ready for project files. This step initializes the project structure.",
+            "status": "pending",
+            "testStrategy": "Verify the directory exists and is accessible by listing its contents.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Install python-telegram-bot library",
+            "description": "Use pip to install the python-telegram-bot library for handling Telegram bot interactions.",
+            "dependencies": [
+              1
+            ],
+            "details": "Run 'pip install python-telegram-bot' in the command line from within the project directory. Ensure pip is up to date and Python 3.x is being used. This library is essential for bot functionality.",
+            "status": "pending",
+            "testStrategy": "Import the library in a Python script and check for no import errors.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Install pexpect library",
+            "description": "Install the pexpect library using pip to enable interaction with CLI processes.",
+            "dependencies": [
+              1
+            ],
+            "details": "Execute 'pip install pexpect' in the terminal from the project directory. Confirm compatibility with Python 3.x. Pexpect will be used for spawning and controlling CLI sessions.",
+            "status": "pending",
+            "testStrategy": "Attempt to import pexpect in a test script and ensure no errors occur.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Create .env file for environment variables",
+            "description": "Set up a .env file to store sensitive configuration like bot token, user ID, and CLI command.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create a file named '.env' in the project directory. Add variables: TELEGRAM_BOT_TOKEN, ALLOWED_USER_ID, CLI_COMMAND with placeholder values. Use python-dotenv for loading if needed.",
+            "status": "pending",
+            "testStrategy": "Check that the .env file exists and contains the required variables by opening it.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Configure and load environment variables",
+            "description": "Implement code to load environment variables from the .env file and ensure they are accessible in the script.",
+            "dependencies": [
+              4
+            ],
+            "details": "Use os.getenv() or dotenv to load TELEGRAM_BOT_TOKEN, ALLOWED_USER_ID, and CLI_COMMAND. Add pseudo-code like 'import os; bot_token = os.getenv('TELEGRAM_BOT_TOKEN')' to the main script. Verify Python 3.x compatibility.",
+            "status": "pending",
+            "testStrategy": "Run a test script that prints the loaded variables and confirm they match the .env file values.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 2,
+        "recommendedSubtasks": 0,
+        "expansionPrompt": "No expansion needed as this is a straightforward setup task.",
+        "updatedAt": "2025-11-03T21:48:37.219Z"
+      },
+      {
+        "id": "2",
+        "title": "Implement bot initialization and basic structure",
+        "description": "Create the main Python script with bot setup using python-telegram-bot, including application builder and basic handlers.",
+        "details": "Use Application.builder().token(bot_token).build() to initialize the bot. Set up basic logging. Define a class or functions for the bot logic. Ensure polling mode for local deployment.",
+        "testStrategy": "Run the script and confirm bot starts without errors. Check Telegram for bot online status.",
+        "priority": "high",
+        "dependencies": [
+          "1"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Telegram Bot Application and Basic Handlers",
+            "description": "Initialize the bot using python-telegram-bot library, configure logging, and register basic handlers for the application.",
+            "dependencies": [],
+            "details": "Use Application.builder().token(bot_token).build() to create the bot application instance. Configure basic logging with the logging module to capture events. Define a main function or class to encapsulate bot logic. Ensure the application is set up for polling mode suitable for local deployment. Register initial handlers such as error handlers or basic command handlers if needed.",
+            "status": "pending",
+            "testStrategy": "Run the main script and verify that the bot initializes without errors, logging is functional, and the application starts polling successfully.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 4,
+        "recommendedSubtasks": 1,
+        "expansionPrompt": "Break down into subtasks for bot application setup and handler registration.",
+        "updatedAt": "2025-11-03T21:48:42.398Z"
+      },
+      {
+        "id": "3",
+        "title": "Add user authentication and security checks",
+        "description": "Implement access restriction to only the allowed Telegram user ID to ensure security.",
+        "details": "In message handlers, check if update.effective_user.id == int(ALLOWED_USER_ID). If not, send 'Unauthorized' message and ignore. Use filters or decorators for this.",
+        "testStrategy": "Test with allowed and disallowed user IDs by sending messages; verify only allowed user can interact.",
+        "priority": "high",
+        "dependencies": [
+          "2"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Configure ALLOWED_USER_ID environment variable",
+            "description": "Set up the ALLOWED_USER_ID as an environment variable or configuration to store the authorized Telegram user ID securely.",
+            "dependencies": [],
+            "details": "Retrieve the ALLOWED_USER_ID from environment variables or a config file. Ensure it's stored securely and not hardcoded in the code to prevent exposure.",
+            "status": "pending",
+            "testStrategy": "Verify that the variable is set correctly and accessible in the application without errors.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement user ID check in message handlers",
+            "description": "Add a check in each message handler to verify if the user's ID matches the allowed ID.",
+            "dependencies": [
+              1
+            ],
+            "details": "In every message handler function, add an if statement: if update.effective_user.id != int(ALLOWED_USER_ID), then handle unauthorized access. This ensures only authorized users can proceed.",
+            "status": "pending",
+            "testStrategy": "Send messages from allowed and disallowed user IDs and confirm that only allowed users trigger handler logic.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Create an authentication decorator",
+            "description": "Develop a decorator to wrap message handlers for consistent authentication checks.",
+            "dependencies": [
+              1
+            ],
+            "details": "Define a decorator function that performs the user ID check before executing the handler. Apply this decorator to all relevant handlers to centralize security logic and reduce code duplication.",
+            "status": "pending",
+            "testStrategy": "Apply the decorator to a handler and test with allowed/disallowed IDs to ensure it blocks unauthorized access.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Handle unauthorized access responses",
+            "description": "Implement the response for unauthorized users, sending an 'Unauthorized' message and ignoring further processing.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "In the authentication check or decorator, if the user is not authorized, send a reply message saying 'Unauthorized' and return early without processing the message. This prevents any interaction from unauthorized users.",
+            "status": "pending",
+            "testStrategy": "Simulate unauthorized access by sending messages from disallowed IDs and verify that 'Unauthorized' is sent and no further actions occur.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Integrate authentication with existing handlers",
+            "description": "Apply the authentication mechanism to all current and future message handlers in the bot.",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Review all message handlers (e.g., /start, /stop, text input) and ensure they include the ID check or use the decorator. Update the code to integrate security seamlessly without disrupting functionality.",
+            "status": "pending",
+            "testStrategy": "Test all handlers with allowed and disallowed users to confirm authentication is enforced across the bot.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 3,
+        "recommendedSubtasks": 0,
+        "expansionPrompt": "No expansion needed as authentication can be added directly to existing handlers.",
+        "updatedAt": "2025-11-03T21:48:46.845Z"
+      },
+      {
+        "id": "4",
+        "title": "Implement /start command handler",
+        "description": "Handle the /start command to launch the CLI process in the background and notify the user.",
+        "details": "Use pexpect.spawn(CLI_COMMAND) to start the CLI. Store the process in a global or class variable. Send initial output or confirmation to Telegram. Handle errors if CLI fails to start.",
+        "testStrategy": "Send /start command; verify CLI launches (check process exists) and user receives confirmation message.",
+        "priority": "medium",
+        "dependencies": [
+          "2",
+          "3"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Spawn CLI process in background",
+            "description": "Use pexpect to spawn the CLI process and store it globally for background execution.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Implement the spawning logic using pexpect.spawn(CLI_COMMAND) to launch the CLI in the background. Store the spawned process in a global or class variable to maintain state across commands. Include error handling for cases where the CLI fails to start, such as logging errors and notifying the user via Telegram.",
+            "status": "pending",
+            "testStrategy": "Test by sending /start command and verifying the process is created without errors, checking if the process variable is set.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 4,
+        "recommendedSubtasks": 1,
+        "expansionPrompt": "Subdivide into process spawning and initial output handling.",
+        "updatedAt": "2025-11-03T21:48:51.592Z"
+      },
+      {
+        "id": "5",
+        "title": "Implement /stop command handler",
+        "description": "Handle the /stop command to terminate the CLI process and notify the user.",
+        "details": "If CLI process exists, call process.terminate() or process.kill(). Clear the process variable. Send confirmation message. Handle cases where no process is running.",
+        "testStrategy": "Start CLI with /start, then send /stop; verify process terminates and user gets notification.",
+        "priority": "medium",
+        "dependencies": [
+          "4"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Check if CLI process is running",
+            "description": "Verify whether a CLI process is currently active before attempting to stop it.",
+            "dependencies": [],
+            "details": "In the /stop command handler, check if the global process variable is not None and if the process is alive using process.isalive(). This prevents unnecessary operations if no process exists.",
+            "status": "pending",
+            "testStrategy": "Send /stop when no process is running and verify no error occurs; send /stop when process is running and confirm check passes.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Terminate the CLI process",
+            "description": "Safely terminate the running CLI process using appropriate methods.",
+            "dependencies": [
+              1
+            ],
+            "details": "If the process exists and is alive, call process.terminate() first. If it doesn't respond within a timeout (e.g., 5 seconds), use process.kill() to force termination. Ensure the process is properly stopped.",
+            "status": "pending",
+            "testStrategy": "Start a CLI process, send /stop, and verify the process terminates by checking if process.isalive() returns False after the command.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Clear the process variable",
+            "description": "Reset the global process variable to None after termination.",
+            "dependencies": [
+              2
+            ],
+            "details": "After successfully terminating the process, set the global process variable to None to indicate no active CLI session. This prepares the system for potential new starts.",
+            "status": "pending",
+            "testStrategy": "After stopping the process, attempt to start a new one and ensure no conflicts arise from the cleared variable.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Send confirmation message to user",
+            "description": "Notify the user that the CLI process has been stopped successfully.",
+            "dependencies": [
+              2
+            ],
+            "details": "Use the Telegram bot's context to send a message like 'CLI process stopped.' to the user. Ensure this happens only after termination is confirmed.",
+            "status": "pending",
+            "testStrategy": "Send /stop command and check that the user receives a confirmation message in Telegram.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Handle case where no process is running",
+            "description": "Provide appropriate feedback when /stop is called without an active process.",
+            "dependencies": [
+              1
+            ],
+            "details": "If no process is running (checked in subtask 1), send a message like 'No CLI process is currently running.' to the user instead of attempting termination.",
+            "status": "pending",
+            "testStrategy": "Send /stop when no process is active and verify the user gets a message indicating no process to stop.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 3,
+        "recommendedSubtasks": 0,
+        "expansionPrompt": "No expansion needed as termination logic is simple.",
+        "updatedAt": "2025-11-03T21:48:56.472Z"
+      },
+      {
+        "id": "6",
+        "title": "Implement output capture and relay to Telegram",
+        "description": "Capture CLI outputs and send them as Telegram messages, detecting new outputs to avoid duplicates.",
+        "details": "After sending input or on start, use process.expect() with regex for prompts (e.g., r'.*[\n\r].*[>?]$'). Send matched output to user. Use threading or async to monitor continuously. Chunk large outputs.",
+        "testStrategy": "Run CLI that outputs text; verify outputs are relayed to Telegram without duplicates.",
+        "priority": "high",
+        "dependencies": [
+          "4"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement regex-based output detection",
+            "description": "Develop a mechanism to detect new CLI outputs using regex patterns for prompts, such as r'.*[\r\n].*[>?]$', to identify when output is ready to be sent.",
+            "dependencies": [],
+            "details": "Use pexpect's expect() method with the specified regex to match CLI prompts. Ensure the regex captures the end of output lines to detect new content without including duplicates. Integrate this into the process monitoring logic to trigger output capture.",
+            "status": "pending",
+            "testStrategy": "Test with a CLI that produces varied outputs; verify regex matches expected prompts and captures output correctly without false positives.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement continuous monitoring via threading or async",
+            "description": "Set up continuous monitoring of the CLI process using threading or async methods to check for new outputs in real-time.",
+            "dependencies": [
+              1
+            ],
+            "details": "After starting the CLI process, initiate a separate thread or async task that runs process.expect() in a loop to monitor for regex matches. Ensure it handles the process continuously without blocking the main bot operations, and triggers output relay when matches occur.",
+            "status": "pending",
+            "testStrategy": "Run the bot with a long-running CLI; send inputs and verify that outputs are monitored and relayed in real-time without delays or blocking.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Implement message chunking and sending to Telegram",
+            "description": "Handle large CLI outputs by chunking them into manageable sizes and sending as Telegram messages, avoiding duplicates.",
+            "dependencies": [
+              2
+            ],
+            "details": "When output is detected, split large outputs into chunks (e.g., based on character limits). Send each chunk as a separate Telegram message to the user. Implement logic to detect and skip duplicate outputs by comparing against previously sent content.",
+            "status": "pending",
+            "testStrategy": "Generate large CLI outputs; confirm they are chunked and sent as multiple messages without duplicates, and that the user receives them sequentially.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 7,
+        "recommendedSubtasks": 3,
+        "expansionPrompt": "Break into subtasks for regex-based output detection, continuous monitoring via threading/async, and message chunking/sending.",
+        "updatedAt": "2025-11-03T21:49:14.704Z"
+      },
+      {
+        "id": "7",
+        "title": "Implement text message input relay to CLI",
+        "description": "Forward any non-command text messages from Telegram to the CLI as stdin.",
+        "details": "In text handler, if process is running, send update.message.text + '\\n' to process.sendline(). Then trigger output capture. Ignore if no process.",
+        "testStrategy": "Send text to bot while CLI is running; verify input is received by CLI and session progresses.",
+        "priority": "high",
+        "dependencies": [
+          "6"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Send text message input to CLI stdin",
+            "description": "In the text message handler, check if the CLI process is running, and if so, forward the non-command text message to the process as stdin by appending a newline.",
+            "dependencies": [],
+            "details": "Modify the text handler function to inspect update.message.text. If it's not a command (e.g., doesn't start with '/'), and if the process variable is set and running, call process.sendline(update.message.text + '\\n') to send the input to the CLI. Ensure proper error handling if the process is not available.",
+            "status": "pending",
+            "testStrategy": "Send a non-command text message to the bot while the CLI process is running; verify that the CLI receives the input and processes it correctly by checking the CLI's behavior or logs.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Trigger output capture after input relay",
+            "description": "After sending the text input to the CLI, immediately trigger the output capture mechanism to relay any new CLI outputs back to the Telegram user.",
+            "dependencies": [
+              1
+            ],
+            "details": "Following the process.sendline() call in the text handler, invoke the output capture function (as implemented in task 6) to monitor for new outputs from the CLI. Use process.expect() with appropriate regex patterns to detect and capture outputs, then send them as messages to the user. Ensure this is done asynchronously or in a non-blocking way to avoid delays.",
+            "status": "pending",
+            "testStrategy": "Send a text input to the bot, then check that the CLI's response output is captured and relayed back to the Telegram chat without duplicates, verifying the integration with the output relay system.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 4,
+        "recommendedSubtasks": 1,
+        "expansionPrompt": "Subdivide into input sending and triggering output capture.",
+        "updatedAt": "2025-11-03T21:49:19.971Z"
+      },
+      {
+        "id": "8",
+        "title": "Add timeout and error handling",
+        "description": "Implement timeouts for CLI operations and handle errors like crashes or network issues.",
+        "details": "Set expect_timeout (e.g., 30s) in pexpect. On timeout or EOF, send error message to user and offer restart. Handle process termination gracefully.",
+        "testStrategy": "Simulate timeout by running a long CLI command; verify notification and ability to restart.",
+        "priority": "medium",
+        "dependencies": [
+          "4",
+          "5",
+          "6",
+          "7"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Configure timeout settings in pexpect",
+            "description": "Set up expect_timeout parameter in pexpect to handle CLI operation timeouts, ensuring operations do not hang indefinitely.",
+            "dependencies": [
+              4,
+              5,
+              6,
+              7
+            ],
+            "details": "Modify the pexpect process initialization to include expect_timeout set to a value like 30 seconds. This will automatically raise a Timeout exception if no expected output is received within the specified time, allowing the system to proceed to error handling.",
+            "status": "pending",
+            "testStrategy": "Simulate a long-running CLI command that exceeds the timeout; verify that a Timeout exception is raised and handled appropriately.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implement error recovery and graceful termination",
+            "description": "Add mechanisms to handle errors such as timeouts, EOF, crashes, and network issues, including sending user notifications and offering restart options.",
+            "dependencies": [
+              4,
+              5,
+              6,
+              7
+            ],
+            "details": "In the exception handlers for Timeout and EOF, log the error, send a user-friendly message to Telegram indicating the issue, and provide an option to restart the CLI process. Ensure the process is terminated gracefully using process.terminate() or similar, and reinitialize the process if restart is chosen. Handle network issues by checking connection status before sending messages.",
+            "status": "pending",
+            "testStrategy": "Induce errors like process crashes or network disconnections; confirm error messages are sent to the user and the restart functionality works without leaving orphaned processes.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 5,
+        "recommendedSubtasks": 2,
+        "expansionPrompt": "Break into timeout configuration and error recovery mechanisms.",
+        "updatedAt": "2025-11-03T21:49:26.588Z"
+      },
+      {
+        "id": "9",
+        "title": "Configure prompt detection and customization",
+        "description": "Make prompt detection regex configurable via environment variables for different CLIs.",
+        "details": "Add PROMPT_REGEX env var, default to something like r'.*[>?]$'. Use in expect() calls. Allow customization for various CLIs.",
+        "testStrategy": "Test with different regex patterns on sample CLIs; ensure prompts are detected correctly.",
+        "priority": "low",
+        "dependencies": [
+          "6"
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define PROMPT_REGEX environment variable",
+            "description": "Introduce the PROMPT_REGEX environment variable to allow configuration of prompt detection regex patterns.",
+            "dependencies": [],
+            "details": "Add documentation or code comments specifying that PROMPT_REGEX should be set as an environment variable, with a default fallback if not provided.",
+            "status": "pending",
+            "testStrategy": "Verify the variable can be set and retrieved in the environment.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Set default regex pattern",
+            "description": "Establish a default regex pattern for prompt detection, such as r'.*[>?]$', to be used when PROMPT_REGEX is not set.",
+            "dependencies": [
+              1
+            ],
+            "details": "In the code, define a constant or variable for the default regex, ensuring it matches common CLI prompts ending with > or ?.",
+            "status": "pending",
+            "testStrategy": "Test that the default pattern works with standard CLI outputs.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Implement environment variable reading",
+            "description": "Modify the code to read the PROMPT_REGEX environment variable and use it or fall back to the default.",
+            "dependencies": [
+              2
+            ],
+            "details": "Use os.getenv() to retrieve PROMPT_REGEX, and if it's None or empty, use the default regex. Store this in a variable accessible to expect() calls.",
+            "status": "pending",
+            "testStrategy": "Check that the code correctly reads the env var and falls back to default when unset.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Update expect() calls to use configurable regex",
+            "description": "Replace hardcoded regex in expect() calls with the configurable regex variable.",
+            "dependencies": [
+              3
+            ],
+            "details": "Locate all instances where expect() is used for prompt detection and replace the regex argument with the variable holding the configurable pattern.",
+            "status": "pending",
+            "testStrategy": "Run the application and ensure expect() behaves correctly with the new regex.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Test customization for various CLIs",
+            "description": "Test the prompt detection with different regex patterns on sample CLIs to ensure flexibility.",
+            "dependencies": [
+              4
+            ],
+            "details": "Set different PROMPT_REGEX values and test against various CLI tools, verifying that prompts are detected accurately without false positives.",
+            "status": "pending",
+            "testStrategy": "Use unit tests or manual testing with different CLIs, checking detection accuracy.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 2,
+        "recommendedSubtasks": 0,
+        "expansionPrompt": "No expansion needed as it's a simple env var addition.",
+        "updatedAt": "2025-11-03T21:49:32.275Z"
+      },
+      {
+        "id": "10",
+        "title": "Test full session flow and performance",
+        "description": "Conduct end-to-end testing of the bot for starting, interacting, and stopping a CLI session, ensuring low latency.",
+        "details": "Run the bot locally, simulate a full interactive CLI session via Telegram. Measure latency (aim <5s). Test up to 100 interactions.",
+        "testStrategy": "Use a test CLI script that prompts for inputs; complete a session remotely and verify no errors, low latency.",
+        "priority": "high",
+        "dependencies": [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9"
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Test functional flow of full CLI session",
+            "description": "Conduct end-to-end testing of the bot's ability to start, interact, and stop a CLI session via Telegram, ensuring all interactions work without errors.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "details": "Run the bot locally and simulate a complete interactive CLI session through Telegram, including starting the session, sending commands, receiving outputs, and stopping the session. Verify that all steps proceed without errors and the session ends properly.",
+            "status": "pending",
+            "testStrategy": "Use a test CLI script to simulate user inputs; complete a full session remotely and check for no errors in logs or responses.",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Benchmark performance and latency",
+            "description": "Measure and ensure low latency during the full session flow, testing up to 100 interactions to confirm performance requirements.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              1
+            ],
+            "details": "After functional testing, run performance benchmarks by simulating up to 100 interactions in a CLI session via Telegram. Measure response times for each interaction, aiming for latency under 5 seconds per response. Use tools to log and analyze timings.",
+            "status": "pending",
+            "testStrategy": "Automate 100 interactions using a script; record timestamps for each send/receive cycle and verify average latency is below 5 seconds.",
+            "parentId": "undefined"
+          }
+        ],
+        "complexity": 6,
+        "recommendedSubtasks": 2,
+        "expansionPrompt": "Subdivide into functional flow testing and performance benchmarking."
+      },
+      {
+        "id": "11",
+        "title": "System-wide installation and auto-start services",
+        "description": "Add cross-platform install/uninstall scripts, symlink a `tg-bridge` command into a PATH directory, provision auto-start (systemd on Linux, LaunchAgent on macOS), and ship clear install docs (QUICKSTART, INSTALL_SUMMARY) plus README updates so the bot can run from anywhere.",
+        "details": "Deliverables\n- scripts/install.sh (idempotent, POSIX sh/bash)\n- scripts/uninstall.sh\n- packaging/systemd/tg-bridge.service (user unit by default)\n- packaging/macos/com.tgbridge.bot.plist (LaunchAgent)\n- docs/QUICKSTART.md, docs/INSTALL_SUMMARY.md, README.md updates\n- Optional: bin/tg-bridge (tiny wrapper) or symlink target\n\nInstall script (key behavior)\n- Detect platform: Linux vs macOS via `uname`.\n- Flags: `--user` (default), `--system` (Linux only), `--no-autostart`, `--prefix <dir>` (CLI install target), `--venv <path>` (explicit Python venv), `--start-cmd <cmd>` (default: `python3 -m tg_bridge`).\n- Ensure a PATH location exists and is persisted:\n  - User install: prefer `~/.local/bin` (create if missing). If not on PATH, append export lines to the active shell profile (`~/.zshrc` or `~/.bashrc`) and print a reminder to re-source.\n  - System install: `/usr/local/bin` (requires sudo).\n- Provide a stable entrypoint:\n  - If `bin/tg-bridge` exists in repo, create a symlink into the chosen prefix.\n  - Else generate a small wrapper at `<prefix>/tg-bridge` that loads an optional env file, activates `--venv` if provided, then execs `--start-cmd`.\n  - Wrapper example (conceptual):\n    #!/usr/bin/env bash\n    set -euo pipefail\n    ENV_FILE=\"${XDG_CONFIG_HOME:-$HOME/.config}/tg-bridge/env\"\n    [ -f \"$ENV_FILE\" ] && set -a && . \"$ENV_FILE\" && set +a\n    if [ -n \"${VENV_DIR:-}\" ] && [ -f \"$VENV_DIR/bin/activate\" ]; then . \"$VENV_DIR/bin/activate\"; fi\n    exec ${TG_BRIDGE_START_CMD:-python3 -m tg_bridge}\n- Create config directory and sample env:\n  - `~/.config/tg-bridge/env` containing TELEGRAM_BOT_TOKEN, ALLOWED_USER_ID, CLI_COMMAND, optional PROMPT_REGEX, timeouts. Never store secrets in the plist or unit directly.\n\nAuto-start on Linux (systemd user unit by default)\n- Install to `~/.config/systemd/user/tg-bridge.service` and run `systemctl --user daemon-reload`.\n- Enable/start unless `--no-autostart`:\n  - `systemctl --user enable --now tg-bridge.service`.\n- Unit template (core fields):\n  [Unit]\\nDescription=TG Bridge Bot\\nAfter=network-online.target\\nWants=network-online.target\\n\\n[Service]\\nType=simple\\nEnvironmentFile=%h/.config/tg-bridge/env\\nExecStart=%h/.local/bin/tg-bridge\\nRestart=on-failure\\nRestartSec=5\\nStandardOutput=journal\\nStandardError=journal\\n\\n[Install]\\nWantedBy=default.target\n- For `--system`, place at `/etc/systemd/system/tg-bridge.service`, set `User=<name>`, `EnvironmentFile=/home/<name>/.config/tg-bridge/env`, then `systemctl daemon-reload && systemctl enable --now tg-bridge` (requires sudo).\n\nAuto-start on macOS (LaunchAgent)\n- Install to `~/Library/LaunchAgents/com.tgbridge.bot.plist` and `launchctl load -w` unless `--no-autostart`.\n- Plist template (core fields):\n  <?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\\n<plist version=\"1.0\"><dict>\\n  <key>Label</key><string>com.tgbridge.bot</string>\\n  <key>ProgramArguments</key><array><string>/Users/$USER/.local/bin/tg-bridge</string></array>\\n  <key>RunAtLoad</key><true/>\\n  <key>KeepAlive</key><true/>\\n  <key>StandardOutPath</key><string>/Users/$USER/Library/Logs/tg-bridge.out.log</string>\\n  <key>StandardErrorPath</key><string>/Users/$USER/Library/Logs/tg-bridge.err.log</string>\\n  <key>ProcessType</key><string>Background</string>\\n</dict></plist>\n- Note: LaunchAgents do not read shell profiles; the wrapper reads `~/.config/tg-bridge/env` to supply secrets.\n\nUninstall script\n- Stop/disable services if present:\n  - Linux user: `systemctl --user disable --now tg-bridge.service`; remove unit; `systemctl --user daemon-reload`.\n  - Linux system: `sudo systemctl disable --now tg-bridge`; remove unit; reload.\n  - macOS: `launchctl unload ~/Library/LaunchAgents/com.tgbridge.bot.plist`; remove plist.\n- Remove symlink/wrapper from `<prefix>/tg-bridge` and optionally stale logs in user directories.\n- Leave `~/.config/tg-bridge/env` intact by default; add `--purge` to delete config safely.\n\nDocumentation\n- docs/QUICKSTART.md: one-page copy/paste for Linux/macOS user install; examples for enabling, status, logs, uninstall; PATH notes.\n- docs/INSTALL_SUMMARY.md: comparison table (Linux user/system vs macOS), file locations, how env is loaded, troubleshooting.\n- README.md: high-level install section linking to QUICKSTART; minimal prerequisites (Python 3.x), required env keys, and a 60-second setup path.\n\nSafety & quality\n- Scripts are POSIX-compatible where possible, with `set -euo pipefail` and clear error messages.\n- Idempotent operations: safely overwrite symlink (`ln -sf`), skip missing resources, return 0 on no-op.\n- Validate prerequisites: check `python3`, create directories, print actionable hints when missing.\n- Shellcheck scripts and include headers describing flags and behavior.",
+        "testStrategy": "Manual cross-platform validation plus script linting.\n\nCommon\n1) Lint scripts: run `shellcheck scripts/install.sh scripts/uninstall.sh` (expect 0 exit code, or justify/disable specific warnings).\n2) Dry-run checks (if implemented) or `-x` tracing: execute with `bash -x` and confirm no errors.\n\nLinux (user service)\n1) Run `scripts/install.sh --user`.\n2) Verify CLI availability: `command -v tg-bridge` returns `~/.local/bin/tg-bridge`.\n3) Confirm env loading: create `~/.config/tg-bridge/env` with dummy values; run `tg-bridge` and verify the bot starts without missing-var errors.\n4) Service state: `systemctl --user status tg-bridge` is active; `journalctl --user -u tg-bridge -n 50` shows startup logs.\n5) Reboot simulation: `systemctl --user restart tg-bridge` and confirm it relaunches.\n6) Uninstall: `scripts/uninstall.sh`; confirm `systemctl --user status tg-bridge` is inactive/not-found and `command -v tg-bridge` fails.\n\nLinux (system service, optional)\n1) `sudo scripts/install.sh --system --prefix /usr/local/bin`.\n2) Check `systemctl status tg-bridge` active; logs appear in `journalctl -u tg-bridge`.\n3) Uninstall with `sudo scripts/uninstall.sh --system`; verify unit and symlink removed.\n\nmacOS (LaunchAgent)\n1) Run `scripts/install.sh` (defaults to user install + LaunchAgent).\n2) Verify CLI: `command -v tg-bridge` returns a PATH location.\n3) Load agent: `launchctl list | grep com.tgbridge.bot` shows the label; logs in `~/Library/Logs/tg-bridge.*.log` include startup.\n4) Restart: `launchctl unload ~/Library/LaunchAgents/com.tgbridge.bot.plist && launchctl load -w ...` and confirm relaunch.\n5) Uninstall: `scripts/uninstall.sh`; ensure plist and symlink are gone and label no longer listed.\n\nAcceptance\n- One-command install yields a working `tg-bridge` on PATH.\n- Auto-start is enabled and resilient (restart on failure) on both platforms.\n- Uninstall fully cleans up without touching user secrets unless `--purge`.\n- Docs provide clear, copy/pasteable steps and troubleshooting.",
+        "status": "done",
+        "dependencies": [
+          "1"
+        ],
+        "priority": "medium",
+        "subtasks": [],
+        "updatedAt": "2025-11-03T21:57:40.011Z"
+      }
+    ],
+    "metadata": {
+      "version": "1.0.0",
+      "lastModified": "2025-11-03T21:57:40.012Z",
+      "taskCount": 11,
+      "completedCount": 10,
+      "tags": [
+        "master"
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=Telegram CLI Bridge Bot
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/Users/reuben/tg-claude-bridge
+ExecStart=/Users/reuben/tg-claude-bridge/tg-bridge
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Environment file (update path as needed)
+EnvironmentFile=/Users/reuben/tg-claude-bridge/.env
+
+[Install]
+WantedBy=default.target

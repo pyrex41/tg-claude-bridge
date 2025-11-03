@@ -1,0 +1,11 @@
+#!/bin/bash
+# Telegram CLI Bridge - System-wide launcher script
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to the project directory
+cd "$SCRIPT_DIR" || exit 1
+
+# Run the bot using uv
+exec uv run python main.py "$@"
