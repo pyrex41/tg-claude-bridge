@@ -252,36 +252,35 @@ Respond with just one word: CONTINUE, BLOCKED, or COMPLETE"""
             return True
 
         elif not REQUIRE_APPROVAL and used_tools:
-            # Auto-continue enabled, made progress with tools but not obviously complete
-            # Ask AI if more work is needed
-            await update.message.reply_text("🔍 **Checking if task is complete...**")
+            # Auto-continue enabled, made progress with tools
+            # If agent used tools successfully and no errors, likely completed the work
 
-            check_prompt = f"""Task: {task.title}
-Description: {task.description[:300]}
+            # Check if response indicates continuation is needed
+            continuation_indicators = [
+                "next step", "then i'll", "i will", "let me continue",
+                "still need to", "next i'll", "continuing with"
+            ]
 
-Agent's work result:
-{response.content[:800]}
+            needs_continuation = any(
+                indicator in content_lower
+                for indicator in continuation_indicators
+            )
 
-Analyze if this task is complete. Reply with ONE word:
-- "COMPLETE" if the task is fully done
-- "CONTINUE" if more work is needed on this task"""
-
-            check = await bot_state.agent.run(check_prompt, continue_session=False)
-            check_result = check.content.strip().upper()
-
-            if "COMPLETE" in check_result:
-                await bot_state.task_client.mark_complete(task.id)
+            if needs_continuation:
+                # Agent explicitly said it needs to continue
                 await update.message.reply_text(
-                    f"✅ **Task {task.id} marked as complete!**"
-                )
-                return True
-            else:
-                # Task needs more work
-                await update.message.reply_text(
-                    f"🔄 **Task {task.id} needs more work**\n"
-                    "Continuing..."
+                    f"🔄 **Agent plans to continue...**"
                 )
                 return False
+            else:
+                # Agent used tools, no errors, no indication of more work
+                # Assume task is complete
+                await bot_state.task_client.mark_complete(task.id)
+                await update.message.reply_text(
+                    f"✅ **Task {task.id} marked as complete!**\n"
+                    "(Tools used successfully, no errors)"
+                )
+                return True
         else:
             # REQUIRE_APPROVAL is true - ask user
             await update.message.reply_text(
