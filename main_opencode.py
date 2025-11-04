@@ -445,6 +445,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/resume - Resume autonomous mode\n"
         "/stop - Stop current task and clear session\n"
         "/skip - Skip current task, reset to pending\n"
+        "/task <id> [context] - Work on specific task\n"
         "/status - Show current status\n"
         "/tasks - List all pending tasks\n"
         "/sync - Verify task-master is in sync with code\n"
@@ -662,6 +663,41 @@ async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "Use `/next` to work on next task or `/auto` to resume autonomous mode."
         )
+
+
+@require_auth
+async def cmd_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Work on a specific task by ID."""
+    if not context.args:
+        await update.message.reply_text(
+            "❌ **Please specify a task ID**\n\n"
+            "Usage: `/task <id>` or `/task <id> <context>`\n"
+            "Examples:\n"
+            "  `/task 2`\n"
+            "  `/task 3.1 focus on error handling`"
+        )
+        return
+
+    task_id = context.args[0]
+    extra_context = " ".join(context.args[1:]) if len(context.args) > 1 else ""
+
+    # Get the specific task
+    task = await bot_state.task_client.get_task(task_id)
+
+    if not task:
+        await update.message.reply_text(f"❌ Task {task_id} not found")
+        return
+
+    # Check if task is already done
+    if task.status == "done":
+        await update.message.reply_text(
+            f"⚠️ **Task {task_id} is already marked as done**\n"
+            "Use `/task {task_id}` anyway to work on it again?"
+        )
+        # Allow continuing anyway
+
+    # Work on the task
+    await work_on_task(task, update, extra_context)
 
 
 @require_auth
@@ -908,6 +944,7 @@ def main():
     application.add_handler(CommandHandler("resume", cmd_resume))
     application.add_handler(CommandHandler("stop", cmd_stop))
     application.add_handler(CommandHandler("skip", cmd_skip))
+    application.add_handler(CommandHandler("task", cmd_task))
     application.add_handler(CommandHandler("status", cmd_status))
     application.add_handler(CommandHandler("tasks", cmd_tasks))
     application.add_handler(CommandHandler("complete", cmd_complete))
