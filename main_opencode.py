@@ -17,14 +17,15 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from opencode_agent import OpenCodeAgent
 from task_master_client import TaskMasterClient, Task
 
-# Load environment
-load_dotenv()
+# Load environment from current directory first, then fallback to script directory
+load_dotenv(override=True)
 
 # Configuration
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID"))
 OPENCODE_MODEL = os.getenv("OPENCODE_MODEL", "grok-4-non-reasoning")
-WORKING_DIRECTORY = os.getenv("WORKING_DIRECTORY", os.getcwd())
+# Use WORKING_DIRECTORY from env, or default to current directory where command was run
+WORKING_DIRECTORY = os.getenv("WORKING_DIRECTORY") or os.getcwd()
 AUTO_CONTINUE = os.getenv("AUTO_CONTINUE", "true").lower() == "true"
 REQUIRE_APPROVAL = os.getenv("REQUIRE_APPROVAL", "false").lower() == "true"
 
