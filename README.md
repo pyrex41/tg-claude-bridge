@@ -2,7 +2,14 @@
 
 Autonomous Telegram bot for task-master integration with AI agents (OpenCode/Grok, LangChain/Groq).
 
-> **Quick Start:** Install with `uv pip install -e .` and run `tg-bridge` from anywhere!
+> **Quick Start:**
+> ```bash
+> git clone https://github.com/yourusername/tg-claude-bridge.git
+> cd tg-claude-bridge
+> uv pip install -e . && pnpm install
+> cp .env.example .env  # Then configure your credentials
+> tg-bridge
+> ```
 
 ## Three Bot Variants
 
@@ -25,23 +32,105 @@ This project provides three different bot implementations:
 
 ## Requirements
 
-- Python 3.13+
-- Telegram account
-- `uv` package manager ([installation guide](https://github.com/astral-sh/uv))
+### System Requirements
+- **Python 3.13+** (Check with `python --version`)
+- **Node.js 18+** (Check with `node --version`)
+- **Telegram account**
+
+### Package Managers
+- **`uv`** - Fast Python package manager ([installation guide](https://github.com/astral-sh/uv))
+  ```bash
+  # Install uv (macOS/Linux)
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+
+  # Install uv (Windows)
+  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+  ```
+
+- **`pnpm`** - Fast, disk space efficient Node.js package manager ([installation guide](https://pnpm.io/installation))
+  ```bash
+  # Install pnpm (macOS/Linux)
+  curl -fsSL https://get.pnpm.io/install.sh | sh -
+
+  # Install pnpm (Windows)
+  powershell -c "irm https://get.pnpm.io/install.ps1 | iex"
+
+  # Or via npm (if you have it)
+  npm install -g pnpm
+
+  # Or via Homebrew (macOS)
+  brew install pnpm
+  ```
 
 ## Installation
 
-```bash
-# Clone and navigate
-cd /path/to/tg-claude-bridge
+Follow these steps to install the Telegram Claude Bridge on your system:
 
-# Install globally with uv
+### 1. Clone the Repository
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/tg-claude-bridge.git
+
+# Navigate into the project directory
+cd tg-claude-bridge
+```
+
+### 2. Install Python Dependencies
+
+```bash
+# Install the package in editable mode with uv
 uv pip install -e .
 
-# This creates three CLI commands:
+# This creates three CLI commands available globally:
 # - tg-bridge (OpenCode bot - recommended)
 # - tg-bridge-langchain (LangChain bot)
 # - tg-bridge-legacy (subprocess bot)
+```
+
+**Note:** The `-e` flag installs in "editable" mode, meaning changes to the source code are immediately reflected without reinstalling.
+
+### 3. Install Node.js Dependencies
+
+```bash
+# Install Node.js packages with pnpm (required for Claude Code SDK)
+pnpm install
+```
+
+### 4. Verify Installation
+
+```bash
+# Check that the CLI commands are available
+which tg-bridge
+which tg-bridge-langchain
+which tg-bridge-legacy
+
+# All three commands should show paths in your Python environment
+```
+
+### 5. Configure Environment Variables
+
+Create a `.env` file in the project directory (copy from `.env.example`):
+
+```bash
+# Copy the example configuration
+cp .env.example .env
+
+# Edit with your credentials
+nano .env  # or use your preferred editor
+```
+
+Required configuration (see Configuration section below for details):
+- `TELEGRAM_BOT_TOKEN` - From @BotFather on Telegram
+- `ALLOWED_USER_ID` - Your Telegram user ID
+- `XAI_API_KEY` - For Grok models
+- `WORKING_DIRECTORY` - Path to your project
+
+### Installation Complete!
+
+You can now run the bot from anywhere:
+```bash
+tg-bridge
 ```
 
 ## Configuration
@@ -223,22 +312,115 @@ task-master list
 
 ## Troubleshooting
 
-### Bot doesn't respond
-- Verify `TELEGRAM_BOT_TOKEN` is correct
-- Check `ALLOWED_USER_ID` matches your Telegram user ID
-- Ensure bot is running (`uv run python main.py`)
+### Installation Issues
 
-### CLI doesn't start
+#### `uv` command not found
+```bash
+# Install uv first
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Add to PATH (may be needed)
+export PATH="$HOME/.cargo/bin:$PATH"
+```
+
+#### `pnpm` command not found
+```bash
+# Install pnpm (macOS/Linux)
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+
+# Or via Homebrew (macOS)
+brew install pnpm
+
+# Or via npm if you have Node.js installed
+npm install -g pnpm
+
+# Windows
+powershell -c "irm https://get.pnpm.io/install.ps1 | iex"
+```
+
+If Node.js is not installed, get it from [nodejs.org](https://nodejs.org/):
+```bash
+# macOS with Homebrew
+brew install node
+
+# Ubuntu/Debian
+sudo apt install nodejs
+
+# Windows - Download from nodejs.org
+```
+
+#### Python version too old
+```bash
+# Check current version
+python --version
+
+# Install Python 3.13+ using pyenv or your system package manager
+# See https://www.python.org/downloads/
+```
+
+#### `tg-bridge` command not found after installation
+```bash
+# Find where uv installed the package
+which python
+# The tg-bridge command should be in the same bin directory
+
+# Try running with full path
+~/.venv/bin/tg-bridge
+
+# Or activate the virtual environment
+source ~/.venv/bin/activate
+tg-bridge
+```
+
+#### Permission denied when installing
+```bash
+# Don't use sudo with uv
+# If you get permission errors, try:
+uv pip install -e . --user
+```
+
+### Runtime Issues
+
+#### Bot doesn't respond
+- Verify `TELEGRAM_BOT_TOKEN` is correct in `.env`
+- Check `ALLOWED_USER_ID` matches your Telegram user ID (get from @userinfobot)
+- Ensure bot is running (check terminal output)
+- Verify bot has been started in Telegram (send `/start` to your bot)
+
+#### API Key errors
+- Check that `XAI_API_KEY` is set correctly in `.env`
+- Verify the API key is valid at [x.ai](https://x.ai)
+- For LangChain bot, ensure `GROQ_API_KEY` is set
+
+#### Module not found errors
+```bash
+# Reinstall dependencies
+uv pip install -e .
+pnpm install
+
+# Check if packages are installed
+uv pip list | grep telegram
+pnpm list
+```
+
+#### Bot crashes on startup
+- Check `.env` file exists and has required variables
+- Review terminal output for specific error messages
+- Verify `WORKING_DIRECTORY` path exists and is accessible
+- Check logs in `logs/tg-bridge.log` if available
+
+### CLI doesn't start (Legacy bot only)
 - Verify `CLI_COMMAND` is installed and in PATH
 - Check CLI launches successfully from terminal: `<your-cli-command>`
 
-### Output not captured
+### Output not captured (Legacy bot only)
 - Adjust `PROMPT_REGEX` to match your CLI's prompt format
 - Increase `CLI_TIMEOUT` for slower CLIs
 
 ### Unauthorized message
 - Confirm you're messaging from the correct Telegram account
 - Verify `ALLOWED_USER_ID` in `.env` matches your user ID
+- Get your user ID from [@userinfobot](https://t.me/userinfobot)
 
 ## License
 
@@ -254,3 +436,4 @@ Built with:
 - [python-telegram-bot](https://python-telegram-bot.org/) - Telegram Bot API wrapper
 - [pexpect](https://pexpect.readthedocs.io/) - Process automation
 - [uv](https://github.com/astral-sh/uv) - Fast Python package manager
+- [pnpm](https://pnpm.io/) - Fast, disk space efficient package manager
