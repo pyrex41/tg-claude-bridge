@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@instantlyeasy/claude-code-sdk-ts':
-        specifier: ^0.3.0
+        specifier: ^0.3.3
         version: 0.3.3
       groq-sdk:
         specifier: ^0.8.0

@@ -5,7 +5,7 @@
   "description": "Telegram bot bridge for Claude Code",
   "main": "claude-bridge.js",
   "dependencies": {
-    "@instantlyeasy/claude-code-sdk-ts": "^0.3.0",
+    "@instantlyeasy/claude-code-sdk-ts": "^0.3.3",
     "groq-sdk": "^0.8.0"
   }
 }
