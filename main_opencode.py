@@ -133,16 +133,15 @@ Be thorough and transparent about what you're doing. Use tools as needed.
                         # Update message every 2 seconds or when we have significant content
                         if (current_time - last_update_time > 2.0 or len(accumulated_text) > 500):
                             try:
+                                # Prepare display text (show last 3900 chars to leave room for header)
+                                display_text = f"💭 **Agent thinking:**\n{accumulated_text[-3900:]}"
+
                                 if current_message:
                                     # Edit existing message
-                                    await current_message.edit_text(
-                                        f"💭 **Agent thinking:**\n{accumulated_text[:4000]}..."
-                                    )
+                                    await current_message.edit_text(display_text)
                                 else:
                                     # Create new message
-                                    current_message = await update.message.reply_text(
-                                        f"💭 **Agent thinking:**\n{accumulated_text[:4000]}..."
-                                    )
+                                    current_message = await update.message.reply_text(display_text)
                                 last_update_time = current_time
                             except Exception as e:
                                 logger.debug(f"Failed to update streaming message: {e}")
