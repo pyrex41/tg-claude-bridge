@@ -48,12 +48,12 @@ class OpenCodeAgent:
         """Parse a JSON event into a human-readable message."""
         event_type = event.get('type', '')
 
-        # Text content
+        # Text content - full text, no truncation (caller will handle display)
         if event_type == 'text':
             part = event.get('part', {})
             text = part.get('text', '')
             if text:
-                return OpenCodeEvent(type='text', message=f"💬 {text[:200]}", data=event)
+                return OpenCodeEvent(type='text', message=text, data=event)
 
         # Tool use
         elif event_type == 'tool_use':

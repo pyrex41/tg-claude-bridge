@@ -105,15 +105,50 @@ Be thorough and transparent about what you're doing. Use tools as needed.
 """
 
     try:
+        # Track streaming output
+        current_message = None
+        accumulated_text = ""
+        last_update_time = 0
+
         # Create event callback to send updates to Telegram
         async def send_event(event):
             """Send parsed event to Telegram."""
-            # Only send meaningful events to avoid spam
-            if event.type in ['tool', 'file', 'error', 'step']:
-                try:
+            nonlocal current_message, accumulated_text, last_update_time
+
+            try:
+                # Send tool/file/error/step events immediately
+                if event.type in ['tool', 'file', 'error', 'step']:
                     await update.message.reply_text(event.message)
-                except Exception as e:
-                    logger.error(f"Failed to send event: {e}")
+
+                # Stream text content as it arrives
+                elif event.type == 'text':
+                    import time
+                    part = event.data.get('part', {})
+                    text = part.get('text', '')
+
+                    if text:
+                        accumulated_text += text
+                        current_time = time.time()
+
+                        # Update message every 2 seconds or when we have significant content
+                        if (current_time - last_update_time > 2.0 or len(accumulated_text) > 500):
+                            try:
+                                if current_message:
+                                    # Edit existing message
+                                    await current_message.edit_text(
+                                        f"💭 **Agent thinking:**\n{accumulated_text[:4000]}..."
+                                    )
+                                else:
+                                    # Create new message
+                                    current_message = await update.message.reply_text(
+                                        f"💭 **Agent thinking:**\n{accumulated_text[:4000]}..."
+                                    )
+                                last_update_time = current_time
+                            except Exception as e:
+                                logger.debug(f"Failed to update streaming message: {e}")
+
+            except Exception as e:
+                logger.error(f"Failed to send event: {e}")
 
         # Run OpenCode agent with event streaming
         response = await bot_state.agent.run(
@@ -121,6 +156,15 @@ Be thorough and transparent about what you're doing. Use tools as needed.
             continue_session=True,
             event_callback=send_event
         )
+
+        # Send final accumulated text if we have a message to update
+        if current_message and accumulated_text:
+            try:
+                await current_message.edit_text(
+                    f"💭 **Agent output:**\n{accumulated_text[:4000]}"
+                )
+            except:
+                pass
 
         # Send agent's final response to Telegram
         if response.content and len(response.content) > 20:
