@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Autonomous Task-Master Bot with OpenCode
-Iterates through task-master tasks autonomously with full transparency
+Autonomous Task-Master Bot with Enhanced Workflow
+Implements plan-and-execute pattern with intelligent error recovery
 """
 
 import os
@@ -16,6 +16,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 from opencode_agent import OpenCodeAgent
 from task_master_client import TaskMasterClient, Task
+from bot_orchestrator import PlanExecuteWorkflow, WorkflowConfig
 
 # Load environment from current directory first, then fallback to script directory
 load_dotenv(override=True)
@@ -24,10 +25,8 @@ load_dotenv(override=True)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID"))
 OPENCODE_MODEL = os.getenv("OPENCODE_MODEL", "grok-4-non-reasoning")
-# Use WORKING_DIRECTORY from env, or default to current directory where command was run
 WORKING_DIRECTORY = os.getenv("WORKING_DIRECTORY") or os.getcwd()
 AUTO_CONTINUE = os.getenv("AUTO_CONTINUE", "true").lower() == "true"
-REQUIRE_APPROVAL = os.getenv("REQUIRE_APPROVAL", "false").lower() == "true"
 
 # Logging
 logging.basicConfig(
@@ -36,12 +35,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global state
+
+# ============================================================================
+# Bot State
+# ============================================================================
+
 @dataclass
 class BotState:
     """Bot state management."""
     agent: OpenCodeAgent
     task_client: TaskMasterClient
+    workflow: PlanExecuteWorkflow
     current_task: Optional[Task] = None
     paused: bool = False
     auto_continue: bool = AUTO_CONTINUE
@@ -51,12 +55,22 @@ class BotState:
             self.agent = OpenCodeAgent(model=OPENCODE_MODEL, working_dir=WORKING_DIRECTORY)
         if self.task_client is None:
             self.task_client = TaskMasterClient(working_dir=WORKING_DIRECTORY)
+        if self.workflow is None:
+            config = WorkflowConfig.from_env()
+            self.workflow = PlanExecuteWorkflow(self.agent, self.task_client, config)
 
+
+# Initialize bot state
 bot_state = BotState(
     agent=OpenCodeAgent(model=OPENCODE_MODEL, working_dir=WORKING_DIRECTORY),
-    task_client=TaskMasterClient(working_dir=WORKING_DIRECTORY)
+    task_client=TaskMasterClient(working_dir=WORKING_DIRECTORY),
+    workflow=None  # Will be initialized in __post_init__
 )
 
+
+# ============================================================================
+# Authentication
+# ============================================================================
 
 def require_auth(func):
     """Decorator to restrict access to authorized user only."""
@@ -71,303 +85,124 @@ def require_auth(func):
     return wrapper
 
 
+# ============================================================================
+# Core Workflow Functions
+# ============================================================================
+
 async def work_on_task(task: Task, update: Update, extra_context: str = "") -> bool:
     """
-    Work on a specific task using OpenCode agent.
+    Work on a specific task using enhanced workflow.
 
     Args:
         task: The task to work on
         update: Telegram update object
         extra_context: Additional context/instructions from user
 
-    Returns True if task completed successfully, False otherwise.
+    Returns:
+        True if task completed successfully, False otherwise
     """
     logger.info(f"Working on task {task.id}: {task.title}")
 
-    # Update status
-    await bot_state.task_client.mark_in_progress(task.id)
     await update.message.reply_text(
-        f"🚀 **Starting work on task {task.id}**\n"
+        f"🚀 **Starting enhanced workflow for task {task.id}**\n"
         f"**Title:** {task.title}\n"
-        f"**Description:** {task.description[:200]}"
+        f"**Description:** {task.description[:200]}\n\n"
+        f"The bot will now: DECOMPOSE → PLAN → EXECUTE → VERIFY → REFLECT"
     )
 
-    # Create comprehensive prompt for the agent
-    prompt = f"""I need you to work on the following task:
+    # Create event callback to send updates to Telegram
+    current_message = None
+    accumulated_text = ""
+    last_update_time = 0
 
-**Task ID:** {task.id}
-**Title:** {task.title}
-**Description:** {task.description}
+    async def send_event(event):
+        """Send parsed event to Telegram."""
+        nonlocal current_message, accumulated_text, last_update_time
 
-Please:
-1. Analyze what needs to be done
-2. Break it down into steps
-3. Execute each step
-4. Verify completion
-5. Report back with results
+        try:
+            # Handle phase events (special formatting)
+            if event.get("type") == "phase":
+                await update.message.reply_text(event.get("message", ""))
+                return
 
-Be thorough and transparent about what you're doing. Use tools as needed."""
+            # Handle regular events (tool/file/error/step)
+            if event.get("type") in ["tool", "file", "error", "step"]:
+                # Flush accumulated text first
+                if accumulated_text and current_message:
+                    try:
+                        await current_message.edit_text(
+                            f"💭 **Agent:**\n{accumulated_text[-3900:]}"
+                        )
+                    except:
+                        pass
+                    current_message = None
+                    accumulated_text = ""
+                    last_update_time = 0
 
-    # Add extra context if provided
-    if extra_context:
-        prompt += f"\n\n**Additional Context/Instructions:**\n{extra_context}"
+                # Send the event
+                await update.message.reply_text(event.get("message", ""))
 
-    try:
-        # Track streaming output
-        current_message = None
-        accumulated_text = ""
-        last_update_time = 0
+            # Stream text content as it arrives
+            elif event.get("type") == "text":
+                import time
+                part = event.get("data", {}).get("part", {})
+                text = part.get("text", "")
 
-        # Create event callback to send updates to Telegram
-        async def send_event(event):
-            """Send parsed event to Telegram."""
-            nonlocal current_message, accumulated_text, last_update_time
+                if text:
+                    accumulated_text += text
+                    current_time = time.time()
 
-            try:
-                # When we get a tool/file/error/step event, flush any accumulated text first
-                if event.type in ['tool', 'file', 'error', 'step']:
-                    # Flush accumulated text as a final message
-                    if accumulated_text and current_message:
+                    # Update message every 2 seconds
+                    if (current_time - last_update_time > 2.0 or len(accumulated_text) > 500):
                         try:
-                            await current_message.edit_text(
-                                f"💭 **Agent:**\n{accumulated_text[-3900:]}"
-                            )
-                        except:
-                            pass
-                        # Reset for next chunk
-                        current_message = None
-                        accumulated_text = ""
-                        last_update_time = 0
+                            display_text = f"💭 **Agent thinking:**\n{accumulated_text[-3900:]}"
 
-                    # Now send the tool/file/error/step event
-                    await update.message.reply_text(event.message)
+                            if current_message:
+                                await current_message.edit_text(display_text)
+                            else:
+                                current_message = await update.message.reply_text(display_text)
+                            last_update_time = current_time
+                        except Exception as e:
+                            logger.debug(f"Failed to update streaming message: {e}")
 
-                # Stream text content as it arrives
-                elif event.type == 'text':
-                    import time
-                    part = event.data.get('part', {})
-                    text = part.get('text', '')
+        except Exception as e:
+            logger.error(f"Failed to send event: {e}")
 
-                    if text:
-                        accumulated_text += text
-                        current_time = time.time()
+    # Use workflow orchestrator with retry logic
+    success = await bot_state.workflow.handle_task_with_retry(
+        task=task,
+        extra_context=extra_context,
+        event_callback=send_event
+    )
 
-                        # Update message every 2 seconds or when we have significant content
-                        if (current_time - last_update_time > 2.0 or len(accumulated_text) > 500):
-                            try:
-                                # Prepare display text (show last 3900 chars to leave room for header)
-                                display_text = f"💭 **Agent thinking:**\n{accumulated_text[-3900:]}"
-
-                                if current_message:
-                                    # Edit existing message
-                                    await current_message.edit_text(display_text)
-                                else:
-                                    # Create new message
-                                    current_message = await update.message.reply_text(display_text)
-                                last_update_time = current_time
-                            except Exception as e:
-                                logger.debug(f"Failed to update streaming message: {e}")
-
-            except Exception as e:
-                logger.error(f"Failed to send event: {e}")
-
-        # Run OpenCode agent with event streaming
-        response = await bot_state.agent.run(
-            prompt=prompt,
-            continue_session=True,
-            event_callback=send_event
-        )
-
-        # Send final accumulated text if we have a message to update
-        if current_message and accumulated_text:
-            try:
-                # Split into chunks if too long (Telegram limit is 4096)
-                full_text = f"💭 **Agent output:**\n{accumulated_text}"
-                if len(full_text) <= 4096:
-                    await current_message.edit_text(full_text)
-                else:
-                    # Update first message with truncated indicator
-                    await current_message.edit_text(
-                        f"💭 **Agent output:**\n{accumulated_text[:3900]}...\n\n(continues below)"
-                    )
-                    # Send continuation in chunks
-                    remaining = accumulated_text[3900:]
-                    while remaining:
-                        chunk = remaining[:4000]
-                        remaining = remaining[4000:]
-                        await update.message.reply_text(chunk)
-            except Exception as e:
-                logger.error(f"Failed to send final text: {e}")
-
-        # Only send final response if we didn't already show it via streaming
-        elif response.content and len(response.content) > 20:
-            # Split into chunks if needed
-            full_text = f"🤖 **Agent:**\n{response.content}"
+    # Send final accumulated text if exists
+    if current_message and accumulated_text:
+        try:
+            full_text = f"💭 **Agent output:**\n{accumulated_text}"
             if len(full_text) <= 4096:
-                await update.message.reply_text(full_text)
+                await current_message.edit_text(full_text)
             else:
-                # Send in chunks
-                await update.message.reply_text(f"🤖 **Agent:**\n{response.content[:3900]}...")
-                remaining = response.content[3900:]
+                await current_message.edit_text(
+                    f"💭 **Agent output:**\n{accumulated_text[:3900]}...\n\n(continues below)"
+                )
+                remaining = accumulated_text[3900:]
                 while remaining:
                     chunk = remaining[:4000]
                     remaining = remaining[4000:]
                     await update.message.reply_text(chunk)
+        except Exception as e:
+            logger.error(f"Failed to send final text: {e}")
 
-        # Check if task appears complete
-        # Look for strong completion indicators
-        completion_patterns = [
-            "task completed", "task finished", "successfully completed",
-            "successfully implemented", "all done", "implementation complete",
-            "all tests pass", "fully implemented", "task is complete",
-            "production-ready", "now fully implemented", "deployment ready",
-            "ready to deploy", "ready for production", "fully implemented and ready",
-            "all subtasks marked complete", "marked complete in task master"
-        ]
-
-        content_lower = response.content.lower()
-        seems_complete = any(pattern in content_lower for pattern in completion_patterns)
-
-        # Check for explicit completion statements (stronger signal)
-        explicit_complete = any([
-            "is fully implemented" in content_lower,
-            "ready for production use" in content_lower,
-            "all subtasks marked complete" in content_lower
-        ])
-
-        # Check for actual error indicators (not just the word "error" which could be in normal text)
-        # Look for patterns that indicate real problems
-        error_patterns = [
-            "error:", "failed to", "failed:", "blocked by", "cannot complete",
-            "unable to complete", "need help", "couldn't", "didn't work",
-            "critical error", "exception:", "traceback", "fatal"
-        ]
-
-        has_errors = any(pattern in content_lower for pattern in error_patterns)
-
-        # If explicitly complete, ignore error indicators (they're likely from prior context)
-        if explicit_complete:
-            has_errors = False
-
-        # Check tool usage - if tools were used successfully, likely made progress
-        used_tools = len(response.tool_calls) > 0
-
-        # Decision logic
-        if has_errors and not explicit_complete:
-            # Has errors - use fast LLM to analyze just the tail
-            tail = response.content[-800:]  # Last 800 chars for context
-
-            # Create a fast agent for quick analysis
-            from opencode_agent import OpenCodeAgent
-            fast_agent = OpenCodeAgent(model="xai/grok-code-fast-1", working_dir=WORKING_DIRECTORY)
-
-            analysis_prompt = f"""Task: {task.title}
-
-Agent's conclusion (last 800 chars):
-{tail}
-
-Quick analysis - reply with ONE word only:
-- COMPLETE: Task is done, errors were handled
-- CONTINUE: Making progress, needs more work
-- BLOCKED: Critical error, cannot proceed
-
-Reply:"""
-
-            try:
-                analysis = await fast_agent.run(analysis_prompt, continue_session=False)
-                decision = analysis.content.strip().upper()
-
-                if "COMPLETE" in decision:
-                    await bot_state.task_client.mark_complete(task.id)
-                    await update.message.reply_text(
-                        f"✅ **Task {task.id} marked as complete!**"
-                    )
-                    return True
-                elif "BLOCKED" in decision:
-                    await update.message.reply_text(
-                        f"🚫 **Task {task.id} appears blocked**\n"
-                        "Moving to next task..."
-                    )
-                    await bot_state.task_client.set_status(task.id, "blocked")
-                    return True
-                else:  # CONTINUE
-                    await update.message.reply_text(
-                        f"⚠️ **Minor issues, continuing work on task {task.id}**"
-                    )
-                    return False
-            except Exception as e:
-                logger.error(f"Fast LLM analysis failed: {e}")
-                # Fallback to simple logic
-                await update.message.reply_text(
-                    f"⚠️ **Issues detected, continuing work on task {task.id}**"
-                )
-                return False
-
-        elif seems_complete or explicit_complete:
-            # Task appears complete or explicitly stated as complete
-            await bot_state.task_client.mark_complete(task.id)
-            await update.message.reply_text(
-                f"✅ **Task {task.id} marked as complete!**"
-            )
-            return True
-
-        elif not REQUIRE_APPROVAL and used_tools:
-            # Auto-continue enabled, made progress with tools
-            # If agent used tools successfully and no errors, likely completed the work
-
-            # Check if response indicates continuation is needed
-            continuation_indicators = [
-                "next step", "then i'll", "i will", "let me continue",
-                "still need to", "next i'll", "continuing with"
-            ]
-
-            needs_continuation = any(
-                indicator in content_lower
-                for indicator in continuation_indicators
-            )
-
-            if needs_continuation:
-                # Agent explicitly said it needs to continue
-                await update.message.reply_text(
-                    f"🔄 **Agent plans to continue...**"
-                )
-                return False
-            else:
-                # Agent used tools, no errors, no indication of more work
-                # Assume task is complete
-                await bot_state.task_client.mark_complete(task.id)
-                await update.message.reply_text(
-                    f"✅ **Task {task.id} marked as complete!**\n"
-                    "(Tools used successfully, no errors)"
-                )
-                return True
-        else:
-            # REQUIRE_APPROVAL is true - ask user
-            await update.message.reply_text(
-                f"🤔 **Is task {task.id} complete?**\n"
-                "Reply with:\n"
-                "- `/complete` to mark as done\n"
-                "- `/retry` to try again\n"
-                "- `/next` to skip to next task"
-            )
-            return False
-
-    except Exception as e:
-        logger.error(f"Error working on task {task.id}: {e}")
-        await update.message.reply_text(
-            f"❌ **Error working on task {task.id}:**\n{str(e)[:500]}"
-        )
-        return False
+    return success
 
 
-async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0, extra_context: str = ""):
+async def autonomous_loop(update: Update, depth: int = 0, extra_context: str = ""):
     """
     Main autonomous loop - works through tasks automatically.
 
     Args:
         update: Telegram update object
         depth: Recursion depth to prevent infinite loops
-        retry_count: Number of retries on current task
         extra_context: Additional context/instructions from user
     """
     if depth > 20:
@@ -381,11 +216,8 @@ async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0, 
         await update.message.reply_text("⏸️ Autonomous mode paused")
         return
 
-    # Get next task (or continue current task)
-    if retry_count == 0:
-        next_task = await bot_state.task_client.get_next_task()
-    else:
-        next_task = bot_state.current_task
+    # Get next task
+    next_task = await bot_state.task_client.get_next_task()
 
     if not next_task:
         await update.message.reply_text(
@@ -396,60 +228,59 @@ async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0, 
     # Store current task
     bot_state.current_task = next_task
 
-    # Work on the task (only use extra_context on first attempt, not retries)
-    task_context = extra_context if retry_count == 0 else ""
+    # Work on the task (only use extra_context on first task, not subsequent ones)
+    task_context = extra_context if depth == 0 else ""
     completed = await work_on_task(next_task, update, task_context)
 
-    # If auto-continue is enabled
-    if bot_state.auto_continue and not bot_state.paused:
-        if completed:
-            # Task completed, move to next (don't pass context to next task)
-            await update.message.reply_text(
-                "🔄 **Auto-continuing to next task...**"
-            )
-            await autonomous_loop(update, depth + 1, retry_count=0, extra_context="")
-        elif retry_count < 3:
-            # Task not complete but no critical error - retry
-            await update.message.reply_text(
-                f"🔄 **Retrying task {next_task.id}** (attempt {retry_count + 2}/4)"
-            )
-            await autonomous_loop(update, depth, retry_count + 1, extra_context=extra_context)
-        else:
-            # Max retries reached
-            await update.message.reply_text(
-                f"⏸️ **Task {next_task.id} needs attention**\n"
-                f"Tried {retry_count + 1} times.\n\n"
-                "Use `/retry` to try again, `/complete` to mark done, or `/next` to skip"
-            )
+    # If auto-continue is enabled and task completed
+    if bot_state.auto_continue and not bot_state.paused and completed:
+        await update.message.reply_text(
+            "🔄 **Auto-continuing to next task...**"
+        )
+        await autonomous_loop(update, depth + 1, extra_context="")
     elif not completed:
         await update.message.reply_text(
-            "⏸️ **Pausing for user input**\n"
-            "Use `/next` to continue to next task"
+            f"⏸️ **Task {next_task.id} needs attention**\n"
+            "Use `/retry` to try again, `/complete` to mark done, or `/next` to skip"
         )
 
 
-# Command handlers
+# ============================================================================
+# Command Handlers
+# ============================================================================
+
 @require_auth
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Initialize the bot."""
+    config = bot_state.workflow.config
     await update.message.reply_text(
-        "🤖 **Autonomous Task-Master Bot**\n\n"
+        "🤖 **Autonomous Task-Master Bot v2.0**\n"
+        "**Enhanced Workflow Edition**\n\n"
         f"**Model:** {bot_state.agent.model}\n"
         f"**Working Directory:** {WORKING_DIRECTORY}\n"
         f"**Auto-continue:** {'Enabled' if bot_state.auto_continue else 'Disabled'}\n\n"
+        "**Workflow Features:**\n"
+        f"✓ Plan-Execute: {'Enabled' if config.enable_plan_execute else 'Disabled'}\n"
+        f"✓ Verification: {'Enabled' if config.enable_verification else 'Disabled'}\n"
+        f"✓ Reflection: {'Enabled' if config.enable_reflection else 'Disabled'}\n"
+        f"✓ Checkpointing: {'Enabled' if config.enable_checkpointing else 'Disabled'}\n"
+        f"✓ Progress Logging: {'Enabled' if config.enable_progress_logging else 'Disabled'}\n\n"
         "**Commands:**\n"
         "/start - Show this message\n"
         "/auto [context] - Start autonomous mode\n"
         "/next [context] - Work on next task manually\n"
+        "/task <id> [context] - Work on specific task\n"
         "/pause - Pause autonomous mode\n"
         "/resume - Resume autonomous mode\n"
         "/stop - Stop current task and clear session\n"
-        "/skip - Skip current task, reset to pending\n"
-        "/task <id> [context] - Work on specific task\n"
+        "/skip - Skip current task\n"
         "/status - Show current status\n"
-        "/tasks - List all pending tasks\n"
-        "/sync - Verify task-master is in sync with code\n"
-        "/complete - Mark current task as complete\n"
+        "/tasks - List all tasks\n"
+        "/stats - Performance metrics\n"
+        "/workflow - Show workflow configuration\n"
+        "/checkpoints [task-id] - List checkpoints\n"
+        "/sync - Verify task-master alignment\n"
+        "/complete - Mark current task complete\n"
         "/retry [context] - Retry current task\n"
         "/models - Switch AI model\n"
         "/project <path> - Change working directory\n"
@@ -465,19 +296,24 @@ async def cmd_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start autonomous mode with optional extra context."""
     bot_state.paused = False
 
-    # Extract extra context from message (anything after /auto command)
+    # Extract extra context from message
     extra_context = " ".join(context.args) if context.args else ""
 
     if extra_context:
         await update.message.reply_text(
-            f"🚀 **Starting autonomous mode...**\n"
-            f"I'll work through tasks automatically.\n"
+            f"🚀 **Starting autonomous mode with enhanced workflow...**\n"
+            f"I'll work through tasks automatically using:\n"
+            f"• Task decomposition\n"
+            f"• Detailed planning\n"
+            f"• Intelligent execution\n"
+            f"• Verification checks\n"
+            f"• Reflection & learning\n\n"
             f"**Extra context:** {extra_context}\n\n"
             "Use `/pause` to stop at any time."
         )
     else:
         await update.message.reply_text(
-            "🚀 **Starting autonomous mode...**\n"
+            "🚀 **Starting autonomous mode with enhanced workflow...**\n"
             "I'll work through tasks automatically.\n"
             "Use `/pause` to stop at any time."
         )
@@ -488,7 +324,6 @@ async def cmd_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @require_auth
 async def cmd_next(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manually trigger next task with optional extra context."""
-    # Extract extra context from message
     extra_context = " ".join(context.args) if context.args else ""
 
     if extra_context:
@@ -540,7 +375,6 @@ async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Show all tasks with clean, chat-friendly formatting."""
     await update.message.reply_text("📋 **Loading all tasks...**")
 
-    # Get all tasks
     all_tasks = await bot_state.task_client.list_tasks()
 
     if not all_tasks:
@@ -559,7 +393,7 @@ async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Show in-progress tasks
     if in_progress_tasks:
         summary += "🔄 **In Progress:**\n"
-        for task in in_progress_tasks[:5]:  # Limit to 5 to avoid spam
+        for task in in_progress_tasks[:5]:
             summary += f"  • {task.id} - {task.title[:50]}\n"
         if len(in_progress_tasks) > 5:
             summary += f"  ... and {len(in_progress_tasks) - 5} more\n"
@@ -568,21 +402,21 @@ async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Show pending tasks
     if pending_tasks:
         summary += "⏳ **Pending:**\n"
-        for task in pending_tasks[:8]:  # Show more pending tasks
+        for task in pending_tasks[:8]:
             priority_icon = "🔴" if task.priority and "high" in task.priority.lower() else "🟡" if task.priority and "medium" in task.priority.lower() else ""
             summary += f"  {priority_icon} {task.id} - {task.title[:50]}\n"
         if len(pending_tasks) > 8:
             summary += f"  ... and {len(pending_tasks) - 8} more\n"
         summary += "\n"
 
-    # Show recently completed (last 3)
+    # Show recently completed
     if done_tasks:
         summary += f"✅ **Completed:** {len(done_tasks)} tasks done\n"
-        for task in done_tasks[-3:]:  # Last 3 completed
+        for task in done_tasks[-3:]:
             summary += f"  • {task.id} - {task.title[:50]}\n"
         summary += "\n"
 
-    # Get and highlight next task
+    # Get next task
     next_task = await bot_state.task_client.get_next_task()
     if next_task:
         summary += f"🎯 **Next Recommended:** {next_task.id} - {next_task.title}\n"
@@ -591,6 +425,67 @@ async def cmd_tasks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         summary += "🎉 **All tasks complete!**"
 
     await update.message.reply_text(summary)
+
+
+@require_auth
+async def cmd_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show performance metrics and telemetry."""
+    await update.message.reply_text("📊 **Generating performance report...**")
+
+    report = await bot_state.workflow.get_telemetry_report()
+    await update.message.reply_text(report)
+
+
+@require_auth
+async def cmd_workflow(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show workflow configuration."""
+    config = bot_state.workflow.config
+
+    workflow_msg = "⚙️ **Workflow Configuration**\n\n"
+    workflow_msg += f"**Plan-Execute Pattern:** {'✅ Enabled' if config.enable_plan_execute else '❌ Disabled'}\n"
+    workflow_msg += f"**Verification:** {'✅ Enabled' if config.enable_verification else '❌ Disabled'}\n"
+    workflow_msg += f"**Reflection:** {'✅ Enabled' if config.enable_reflection else '❌ Disabled'}\n"
+    workflow_msg += f"**Checkpointing:** {'✅ Enabled' if config.enable_checkpointing else '❌ Disabled'}\n"
+    workflow_msg += f"**Subtask Decomposition:** {'✅ Enabled' if config.enable_subtask_decomposition else '❌ Disabled'}\n"
+    workflow_msg += f"**Progress Logging:** {'✅ Enabled' if config.enable_progress_logging else '❌ Disabled'}\n"
+    workflow_msg += f"**Multi-Strategy Retry:** {'✅ Enabled' if config.enable_multi_strategy_retry else '❌ Disabled'}\n"
+    workflow_msg += f"**Max Retry Attempts:** {config.max_retry_attempts}\n\n"
+    workflow_msg += "💡 Configure via environment variables in `.env`"
+
+    await update.message.reply_text(workflow_msg)
+
+
+@require_auth
+async def cmd_checkpoints(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """List checkpoints for a task."""
+    if not context.args:
+        await update.message.reply_text(
+            "**Usage:** `/checkpoints <task-id>`\n\n"
+            "Example: `/checkpoints 10`"
+        )
+        return
+
+    task_id = context.args[0]
+
+    checkpoints = await bot_state.workflow.checkpoint_manager.list_checkpoints(task_id)
+
+    if not checkpoints:
+        await update.message.reply_text(f"No checkpoints found for task {task_id}")
+        return
+
+    msg = f"💾 **Checkpoints for Task {task_id}**\n\n"
+    for cp in checkpoints[:10]:
+        msg += f"**{cp.id[:8]}...** - {cp.timestamp.strftime('%Y-%m-%d %H:%M:%S')}\n"
+        if cp.subtask_progress:
+            completed = sum(1 for s in cp.subtask_progress.values() if s == "done")
+            total = len(cp.subtask_progress)
+            msg += f"  Progress: {completed}/{total} subtasks\n"
+        msg += "\n"
+
+    if len(checkpoints) > 10:
+        msg += f"... and {len(checkpoints) - 10} more\n"
+
+    await update.message.reply_text(msg)
 
 
 @require_auth
@@ -613,7 +508,6 @@ async def cmd_complete(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @require_auth
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Stop current task and autonomous mode, kill any running processes."""
-    # Set paused flag to stop loops
     bot_state.paused = True
 
     # Try to kill any running opencode processes
@@ -642,7 +536,6 @@ async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ No current task to skip")
         return
 
-    # Mark current task as pending (reset it) so it can be picked up later
     task_id = bot_state.current_task.id
     await bot_state.task_client.set_status(task_id, "pending")
 
@@ -652,11 +545,9 @@ async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Moving to next task..."
     )
 
-    # Clear current task
     bot_state.current_task = None
     await bot_state.agent.clear_session()
 
-    # Move to next task if auto-continue is enabled
     if bot_state.auto_continue:
         await autonomous_loop(update)
     else:
@@ -692,9 +583,8 @@ async def cmd_task(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if task.status == "done":
         await update.message.reply_text(
             f"⚠️ **Task {task_id} is already marked as done**\n"
-            "Use `/task {task_id}` anyway to work on it again?"
+            "Working on it anyway..."
         )
-        # Allow continuing anyway
 
     # Work on the task
     await work_on_task(task, update, extra_context)
@@ -707,7 +597,6 @@ async def cmd_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ No current task to retry")
         return
 
-    # Extract extra context from message
     extra_context = " ".join(context.args) if context.args else ""
 
     if extra_context:
@@ -735,7 +624,6 @@ async def cmd_project(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     new_dir = " ".join(context.args)
 
-    # Validate directory exists
     if not os.path.exists(new_dir):
         await update.message.reply_text(f"❌ Directory not found: {new_dir}")
         return
@@ -759,14 +647,12 @@ async def cmd_clear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @require_auth
 async def cmd_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Switch between available models."""
-    # Available models
     models = {
         "1": ("xai/grok-code-fast-1", "Grok Code Fast 1 - Optimized for coding tasks"),
         "2": ("xai/grok-4-fast-non-reasoning", "Grok 4 Fast (Non-Reasoning) - Faster responses"),
         "3": ("xai/grok-4-fast-reasoning", "Grok 4 Fast (Reasoning) - Advanced reasoning"),
     }
 
-    # If no argument, show current model and options
     if not context.args:
         current_model = bot_state.agent.model
         model_list = "🤖 **Model Selection**\n\n"
@@ -779,7 +665,6 @@ async def cmd_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(model_list)
         return
 
-    # Switch model
     choice = context.args[0]
     if choice not in models:
         await update.message.reply_text(
@@ -790,10 +675,7 @@ async def cmd_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     new_model_id, description = models[choice]
 
-    # Update agent model
     bot_state.agent.model = new_model_id
-
-    # Clear session when switching models
     await bot_state.agent.clear_session()
 
     await update.message.reply_text(
@@ -814,13 +696,11 @@ async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     try:
-        # Get all tasks
         all_tasks = await bot_state.task_client.list_tasks()
         done_tasks = [t for t in all_tasks if t.status == "done"]
         in_progress_tasks = [t for t in all_tasks if t.status == "in-progress"]
         pending_tasks = [t for t in all_tasks if t.status == "pending"]
 
-        # Create analysis prompt
         analysis_prompt = f"""I need you to analyze the codebase and verify if task-master tasks are in sync with reality.
 
 **Current Task Status:**
@@ -853,7 +733,6 @@ If everything is in sync, just say "✅ All tasks are in sync with codebase"
 
 Be thorough but efficient. Focus on major features, not minor details."""
 
-        # Run analysis using agent
         await update.message.reply_text("🤖 **Agent analyzing codebase...**")
 
         response = await bot_state.agent.run(
@@ -861,10 +740,8 @@ Be thorough but efficient. Focus on major features, not minor details."""
             continue_session=False
         )
 
-        # Send analysis results
         result_text = f"📊 **Sync Analysis Results:**\n\n{response.content}"
 
-        # Split if too long
         if len(result_text) <= 4096:
             await update.message.reply_text(result_text)
         else:
@@ -875,7 +752,6 @@ Be thorough but efficient. Focus on major features, not minor details."""
                 remaining = remaining[4000:]
                 await update.message.reply_text(chunk)
 
-        # Check if updates are needed
         if "discrepancy" in response.content.lower() or "mismatch" in response.content.lower():
             await update.message.reply_text(
                 "⚠️ **Discrepancies found!**\n\n"
@@ -902,12 +778,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("🤖 Processing...")
 
-    # Create event callback
     async def send_event(event):
         """Send parsed event to Telegram."""
-        if event.type in ['tool', 'file', 'error', 'step']:
+        if event.get("type") in ["tool", "file", "error", "step"]:
             try:
-                await update.message.reply_text(event.message)
+                await update.message.reply_text(event.get("message", ""))
             except Exception as e:
                 logger.error(f"Failed to send event: {e}")
 
@@ -917,21 +792,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         event_callback=send_event
     )
 
-    # Send final response if meaningful
     if response.content and len(response.content) > 20:
         await update.message.reply_text(
             f"**Agent:**\n{response.content[:4000]}"
         )
 
 
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
 def main():
     """Start the bot."""
     if not TELEGRAM_BOT_TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN not set in .env")
 
-    logger.info(f"Starting Autonomous Task-Master Bot (OpenCode)")
+    logger.info(f"Starting Autonomous Task-Master Bot v2.0 (Enhanced Workflow)")
     logger.info(f"Model: {OPENCODE_MODEL}")
     logger.info(f"Working Directory: {WORKING_DIRECTORY}")
+    logger.info(f"Workflow Features: Plan-Execute, Verification, Reflection, Checkpointing")
 
     # Create application
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
@@ -947,6 +826,9 @@ def main():
     application.add_handler(CommandHandler("task", cmd_task))
     application.add_handler(CommandHandler("status", cmd_status))
     application.add_handler(CommandHandler("tasks", cmd_tasks))
+    application.add_handler(CommandHandler("stats", cmd_stats))
+    application.add_handler(CommandHandler("workflow", cmd_workflow))
+    application.add_handler(CommandHandler("checkpoints", cmd_checkpoints))
     application.add_handler(CommandHandler("complete", cmd_complete))
     application.add_handler(CommandHandler("retry", cmd_retry))
     application.add_handler(CommandHandler("sync", cmd_sync))
