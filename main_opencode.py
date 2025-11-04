@@ -407,18 +407,21 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"**Auto-continue:** {'Enabled' if bot_state.auto_continue else 'Disabled'}\n\n"
         "**Commands:**\n"
         "/start - Show this message\n"
-        "/auto - Start autonomous mode\n"
-        "/next - Work on next task manually\n"
+        "/auto [context] - Start autonomous mode\n"
+        "/next [context] - Work on next task manually\n"
         "/pause - Pause autonomous mode\n"
         "/resume - Resume autonomous mode\n"
         "/status - Show current status\n"
         "/tasks - List all pending tasks\n"
+        "/sync - Verify task-master is in sync with code\n"
         "/complete - Mark current task as complete\n"
-        "/retry - Retry current task\n"
+        "/retry [context] - Retry current task\n"
         "/models - Switch AI model\n"
         "/project <path> - Change working directory\n"
         "/clear - Clear agent session\n\n"
-        "💡 **Tip:** Use `/auto` to start working through tasks automatically!"
+        "💡 **Tip:** Add extra context to commands:\n"
+        "  `/auto focus on performance`\n"
+        "  `/retry use simpler approach`"
     )
 
 
@@ -678,6 +681,95 @@ async def cmd_models(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @require_auth
+async def cmd_sync(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Verify task-master is in sync with codebase and update if needed."""
+    await update.message.reply_text(
+        "🔍 **Analyzing codebase vs task-master status...**\n"
+        "This will check if completed tasks are actually done and update accordingly."
+    )
+
+    try:
+        # Get all tasks
+        all_tasks = await bot_state.task_client.list_tasks()
+        done_tasks = [t for t in all_tasks if t.status == "done"]
+        in_progress_tasks = [t for t in all_tasks if t.status == "in-progress"]
+        pending_tasks = [t for t in all_tasks if t.status == "pending"]
+
+        # Create analysis prompt
+        analysis_prompt = f"""I need you to analyze the codebase and verify if task-master tasks are in sync with reality.
+
+**Current Task Status:**
+
+**Done ({len(done_tasks)} tasks):**
+{chr(10).join(f"- Task {t.id}: {t.title}" for t in done_tasks[:10])}
+{"..." if len(done_tasks) > 10 else ""}
+
+**In Progress ({len(in_progress_tasks)} tasks):**
+{chr(10).join(f"- Task {t.id}: {t.title}" for t in in_progress_tasks)}
+
+**Pending ({len(pending_tasks)} tasks):**
+{chr(10).join(f"- Task {t.id}: {t.title}" for t in pending_tasks[:10])}
+{"..." if len(pending_tasks) > 10 else ""}
+
+**Your Task:**
+1. Analyze the codebase to check what's actually implemented
+2. For each "done" task, verify it's actually complete in the code
+3. For "in-progress" tasks, check if they're actually done
+4. For "pending" tasks, check if they're already implemented
+
+**Report Format:**
+For each discrepancy found:
+- Task ID
+- Current status
+- Actual status based on code
+- Brief reason (what you found/didn't find)
+
+If everything is in sync, just say "✅ All tasks are in sync with codebase"
+
+Be thorough but efficient. Focus on major features, not minor details."""
+
+        # Run analysis using agent
+        await update.message.reply_text("🤖 **Agent analyzing codebase...**")
+
+        response = await bot_state.agent.run(
+            prompt=analysis_prompt,
+            continue_session=False
+        )
+
+        # Send analysis results
+        result_text = f"📊 **Sync Analysis Results:**\n\n{response.content}"
+
+        # Split if too long
+        if len(result_text) <= 4096:
+            await update.message.reply_text(result_text)
+        else:
+            await update.message.reply_text(result_text[:3900] + "...\n\n(continues below)")
+            remaining = result_text[3900:]
+            while remaining:
+                chunk = remaining[:4000]
+                remaining = remaining[4000:]
+                await update.message.reply_text(chunk)
+
+        # Check if updates are needed
+        if "discrepancy" in response.content.lower() or "mismatch" in response.content.lower():
+            await update.message.reply_text(
+                "⚠️ **Discrepancies found!**\n\n"
+                "Would you like me to update task-master?\n"
+                "Reply with:\n"
+                "- `/sync update` to automatically update tasks\n"
+                "- Or manually run `task-master set-status --id=X --status=done`"
+            )
+        else:
+            await update.message.reply_text("✅ **Everything looks good!**")
+
+    except Exception as e:
+        logger.error(f"Sync analysis error: {e}")
+        await update.message.reply_text(
+            f"❌ **Error during sync analysis:**\n{str(e)[:500]}"
+        )
+
+
+@require_auth
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle direct messages to the agent."""
     message_text = update.message.text
@@ -729,6 +821,7 @@ def main():
     application.add_handler(CommandHandler("tasks", cmd_tasks))
     application.add_handler(CommandHandler("complete", cmd_complete))
     application.add_handler(CommandHandler("retry", cmd_retry))
+    application.add_handler(CommandHandler("sync", cmd_sync))
     application.add_handler(CommandHandler("models", cmd_models))
     application.add_handler(CommandHandler("project", cmd_project))
     application.add_handler(CommandHandler("clear", cmd_clear))
