@@ -414,6 +414,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/pause - Pause autonomous mode\n"
         "/resume - Resume autonomous mode\n"
         "/stop - Stop current task and clear session\n"
+        "/skip - Skip current task, reset to pending\n"
         "/status - Show current status\n"
         "/tasks - List all pending tasks\n"
         "/sync - Verify task-master is in sync with code\n"
@@ -601,6 +602,36 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "All processes killed, task cleared, autonomous mode paused.\n"
         "Use `/auto` to restart or `/next` for next task."
     )
+
+
+@require_auth
+async def cmd_skip(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Skip current task and move to next one."""
+    if not bot_state.current_task:
+        await update.message.reply_text("❌ No current task to skip")
+        return
+
+    # Mark current task as pending (reset it) so it can be picked up later
+    task_id = bot_state.current_task.id
+    await bot_state.task_client.set_status(task_id, "pending")
+
+    await update.message.reply_text(
+        f"⏭️ **Skipped task {task_id}**\n"
+        "Status reset to pending.\n"
+        "Moving to next task..."
+    )
+
+    # Clear current task
+    bot_state.current_task = None
+    await bot_state.agent.clear_session()
+
+    # Move to next task if auto-continue is enabled
+    if bot_state.auto_continue:
+        await autonomous_loop(update)
+    else:
+        await update.message.reply_text(
+            "Use `/next` to work on next task or `/auto` to resume autonomous mode."
+        )
 
 
 @require_auth
@@ -846,6 +877,7 @@ def main():
     application.add_handler(CommandHandler("pause", cmd_pause))
     application.add_handler(CommandHandler("resume", cmd_resume))
     application.add_handler(CommandHandler("stop", cmd_stop))
+    application.add_handler(CommandHandler("skip", cmd_skip))
     application.add_handler(CommandHandler("status", cmd_status))
     application.add_handler(CommandHandler("tasks", cmd_tasks))
     application.add_handler(CommandHandler("complete", cmd_complete))
