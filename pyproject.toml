@@ -6,7 +6,20 @@ requires-python = ">=3.13"
 dependencies = [
     "python-dotenv>=1.1.1",
     "python-telegram-bot>=22.5",
+    "langchain>=0.3.0",
+    "langchain-groq>=0.2.0",
+    "langchain-community>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-experimental>=0.3.0",
+    "langgraph>=0.2.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
 ]
 
 [project.scripts]
-tg-cli-bridge = "main:main"
+tg-bridge = "main_opencode:main"
+tg-bridge-langchain = "main_langchain:main"
+tg-bridge-legacy = "main:main"
+
+[tool.setuptools]
+py-modules = ["main_opencode", "main_langchain", "main", "opencode_agent", "task_master_client"]

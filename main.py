@@ -145,7 +145,16 @@ async def stream_output(
 
                 # Extract text content
                 text = None
-                if data.get("type") == "text":
+                if data.get("type") == "assistant":
+                    # Handle assistant message type from stream-json
+                    message = data.get("message", {})
+                    content = message.get("content", [])
+                    if isinstance(content, list) and len(content) > 0:
+                        for item in content:
+                            if isinstance(item, dict) and item.get("type") == "text":
+                                text = item.get("text", "")
+                                break
+                elif data.get("type") == "text":
                     text = data.get("text", "")
                 elif data.get("type") == "message":
                     content = data.get("content", {})
@@ -305,7 +314,7 @@ async def run_agent_with_auto_continue(prompt: str, application, chat_id: int):
     global agent_state, auto_continue_enabled
 
     # Run Agent
-    agent_state.conversation_history.append(prompt)
+    if agent_state.conversation_history is not None: agent_state.conversation_history.append(prompt)
     agent_state.process = run_agent_command(prompt, "agent")
 
     agent_state.stream_task = asyncio.create_task(
@@ -459,11 +468,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     """Handle text messages - route to appropriate agent."""
     global current_chat_id, active_mode
 
-    user_input = update.message.text
+    user_input = update.message.text or ''
     logger.info(f"Message for {active_mode}: {user_input}")
 
-    if not current_chat_id:
-        current_chat_id = update.effective_chat.id
+    if current_chat_id is None:
+        current_chat_id = update.effective_chat.id if update.effective_chat else None
 
     try:
         if active_mode == "agent":
@@ -471,7 +480,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await run_agent_with_auto_continue(user_input, context.application, current_chat_id)
         else:
             # Send to TaskMaster directly (no auto-continue)
-            taskmaster_state.conversation_history.append(user_input)
+            if taskmaster_state.conversation_history is not None: taskmaster_state.conversation_history.append(user_input or '')
 
             # Build prompt with context
             if len(taskmaster_state.conversation_history) > 1:

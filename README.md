@@ -1,23 +1,27 @@
-# Telegram CLI Bridge Bot
+# Telegram Claude Bridge
 
-A lightweight Python bot that enables remote interaction with command-line interface (CLI) tools from Telegram. Perfect for managing interactive CLI sessions from your mobile device.
+Autonomous Telegram bot for task-master integration with AI agents (OpenCode/Grok, LangChain/Groq).
 
-> **Quick Start:** New here? Check out [QUICKSTART.md](QUICKSTART.md) for a 5-minute setup guide!
+> **Quick Start:** Install with `uv pip install -e .` and run `tg-bridge` from anywhere!
 
-## Documentation
+## Three Bot Variants
 
-- 📖 **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
-- 📋 **[INSTALL_SUMMARY.md](INSTALL_SUMMARY.md)** - Post-installation guide
-- 📚 **README.md** - Complete documentation (you are here)
+This project provides three different bot implementations:
 
-## Features
+1. **`tg-bridge`** (main_opencode.py) - Recommended autonomous bot with OpenCode/Grok
+2. **`tg-bridge-langchain`** (main_langchain.py) - LangChain/Groq dual-agent system
+3. **`tg-bridge-legacy`** (main.py) - Original subprocess-based CLI bridge
 
-- 🔄 Bidirectional communication between Telegram and CLI processes
-- 🔒 Single-user security with Telegram user ID authentication
-- 📱 Remote CLI access from any Telegram-enabled device
-- ⚡ Real-time input/output relay with low latency
-- 🧩 Configurable prompt detection for various CLI tools
-- 📦 Built with `uv` for fast, modern Python package management
+## Features (`tg-bridge` - OpenCode Bot)
+
+- 🤖 **Autonomous Task Execution** - Automatically works through task-master tasks
+- 🧠 **AI-Powered Decisions** - Smart completion verification and error handling
+- 🔄 **Model Switching** - Switch between Grok models on the fly (`/models`)
+- 📋 **Clean Task Display** - Parsed, chat-friendly task lists (`/tasks`)
+- 🔧 **Real-Time Updates** - See tool calls, file edits, and progress live
+- 📁 **Multi-Directory** - Work on multiple projects (`/project`)
+- 💰 **Cost Tracking** - Monitor API usage per step
+- 🔒 **Single-User Security** - Telegram user ID authentication
 
 ## Requirements
 
@@ -27,76 +31,61 @@ A lightweight Python bot that enables remote interaction with command-line inter
 
 ## Installation
 
-### Quick Install (Recommended)
+```bash
+# Clone and navigate
+cd /path/to/tg-claude-bridge
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd tg-claude-bridge
-   ```
+# Install globally with uv
+uv pip install -e .
 
-2. **Run the installer:**
-   ```bash
-   ./install.sh
-   ```
+# This creates three CLI commands:
+# - tg-bridge (OpenCode bot - recommended)
+# - tg-bridge-langchain (LangChain bot)
+# - tg-bridge-legacy (subprocess bot)
+```
 
-   This will:
-   - Install dependencies via `uv`
-   - Create a `.env` file from template
-   - Install `tg-bridge` command to `~/.local/bin`
+## Configuration
 
-3. **Create a Telegram Bot:**
-   - Open Telegram and search for [@BotFather](https://t.me/botfather)
-   - Send `/newbot` and follow the instructions
-   - Save the bot token provided
-
-4. **Get your Telegram User ID:**
-   - Search for [@userinfobot](https://t.me/userinfobot) on Telegram
-   - Send `/start` to get your user ID
-
-5. **Configure environment variables:**
-   Edit `~/.../tg-claude-bridge/.env` with your settings:
-   ```env
-   TELEGRAM_BOT_TOKEN="your_bot_token_here"
-   ALLOWED_USER_ID="your_telegram_user_id_here"
-   CLI_COMMAND="claude"  # or any other CLI command
-   ```
-
-6. **Ensure `~/.local/bin` is in your PATH:**
-
-   Add to your `~/.zshrc` or `~/.bashrc`:
-   ```bash
-   export PATH="$HOME/.local/bin:$PATH"
-   ```
-
-   Then reload: `source ~/.zshrc`
-
-### Manual Installation
-
-If you prefer manual setup:
+Create `.env` in your project directory:
 
 ```bash
-git clone <repository-url>
-cd tg-claude-bridge
-uv sync
-cp .env.example .env
-# Edit .env with your configuration
+# Required
+TELEGRAM_BOT_TOKEN="your_bot_token"        # From @BotFather
+ALLOWED_USER_ID="your_user_id"             # From @userinfobot
+
+# OpenCode Configuration
+OPENCODE_MODEL="xai/grok-4-fast-non-reasoning"
+WORKING_DIRECTORY="/path/to/your/project"
+AUTO_CONTINUE=true
+REQUIRE_APPROVAL=false
+
+# API Keys
+XAI_API_KEY="your_xai_key"                 # Required for Grok models
+GROQ_API_KEY="your_groq_key"               # Optional, for LangChain bot
+ANTHROPIC_API_KEY="your_anthropic_key"     # Optional
 ```
+
+Get your credentials:
+- **Bot Token**: Message [@BotFather](https://t.me/botfather) on Telegram, send `/newbot`
+- **User ID**: Message [@userinfobot](https://t.me/userinfobot), send `/start`
+- **XAI Key**: Get from [x.ai](https://x.ai)
 
 ## Usage
 
-### Start the bot (from anywhere):
+### Start the bot
 
+From anywhere on your computer:
 ```bash
 tg-bridge
 ```
 
-Or if you didn't install system-wide:
-
+From a specific project:
 ```bash
-cd /path/to/tg-claude-bridge
-uv run python main.py
+cd /path/to/your/project
+tg-bridge
 ```
+
+The bot loads `.env` from the current directory, or uses the one in the install directory.
 
 ### Run as background service (optional):
 
@@ -142,19 +131,37 @@ systemctl --user start tg-cli-bridge.service
 systemctl --user status tg-cli-bridge.service
 ```
 
-### Telegram Commands:
+### Telegram Commands
 
-- `/start` - Launch the CLI process
-- `/stop` - Terminate the CLI process
-- Any text message - Send input to the running CLI
+- `/start` - Show help and current configuration
+- `/auto` - Start autonomous task-master workflow
+- `/next` - Work on next task manually
+- `/tasks` - List all pending tasks (clean, parsed format)
+- `/models` - Switch AI models interactively
+  - 1 = Grok Code Fast 1 (coding optimized)
+  - 2 = Grok 4 Fast Non-Reasoning (faster)
+  - 3 = Grok 4 Fast Reasoning (advanced)
+- `/status` - Show current bot status and active task
+- `/pause` / `/resume` - Control autonomous mode
+- `/complete` - Mark current task as complete
+- `/retry` - Retry current task with fresh context
+- `/project <path>` - Change working directory
+- `/clear` - Clear agent session and start fresh
 
-### Example Workflow:
+### Example Workflow
 
-1. Send `/start` to your bot on Telegram
-2. Bot launches the CLI (e.g., "claude") and relays its output
-3. Respond to prompts by sending text messages
-4. Bot forwards your input to the CLI and sends back responses
-5. Send `/stop` when done to terminate the session
+1. Start the bot: `tg-bridge`
+2. In Telegram, send `/start` to see configuration
+3. Send `/tasks` to see what needs to be done
+4. Send `/auto` to start autonomous execution
+5. Watch as the bot:
+   - Gets the next task from task-master
+   - Uses AI to work on it
+   - Shows real-time updates (tool calls, file edits)
+   - Verifies completion with AI
+   - Automatically moves to the next task
+6. Use `/pause` if you need to interrupt
+7. Use `/models 1` to switch models if needed
 
 ## Configuration
 
