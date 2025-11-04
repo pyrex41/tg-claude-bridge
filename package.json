@@ -1,0 +1,11 @@
+{
+  "name": "tg-claude-bridge",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Telegram bot bridge for Claude Code",
+  "main": "claude-bridge.js",
+  "dependencies": {
+    "@instantlyeasy/claude-code-sdk-ts": "^0.3.0",
+    "groq-sdk": "^0.8.0"
+  }
+}
