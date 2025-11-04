@@ -163,32 +163,50 @@ Be thorough and transparent about what you're doing. Use tools as needed.
 Agent's response:
 {response.content[:1000]}
 
-The response indicates errors or issues. Should we:
-A) Retry with additional guidance
-B) Mark as blocked and move to next task
-C) The errors were handled, continue
+The response indicates errors or issues. Analyze the situation:
 
-Respond with just the letter (A, B, or C) and a brief reason."""
+CONTINUE - If the agent is making progress and just needs more iterations to complete the task
+BLOCKED - If there's a critical error that requires human intervention
+COMPLETE - If the errors were handled and the task is actually done
+
+Respond with just one word: CONTINUE, BLOCKED, or COMPLETE"""
 
             analysis = await bot_state.agent.run(analysis_prompt, continue_session=False)
-            decision = analysis.content.strip()
+            decision = analysis.content.strip().upper()
 
-            await update.message.reply_text(
-                f"🤔 **Decision:** {decision}\n\n"
-                "Task kept as in-progress. Use `/retry`, `/complete`, or `/next`"
-            )
-            return False
+            if "CONTINUE" in decision:
+                await update.message.reply_text(
+                    f"🔄 **Continuing work on task {task.id}**\n"
+                    "Agent needs more iterations..."
+                )
+                # Return False but don't stop - the autonomous loop will retry
+                return False
+            elif "BLOCKED" in decision:
+                await update.message.reply_text(
+                    f"🚫 **Task {task.id} blocked**\n"
+                    f"Reason: {analysis.content[:200]}\n\n"
+                    "Moving to next task..."
+                )
+                await bot_state.task_client.set_status(task.id, "blocked")
+                return True  # Move to next task
+            else:  # COMPLETE
+                await bot_state.task_client.mark_complete(task.id)
+                await update.message.reply_text(
+                    f"✅ **Task {task.id} marked as complete!**"
+                )
+                return True
 
-        elif seems_complete or (not REQUIRE_APPROVAL and not has_errors and used_tools):
-            # Seems complete or made progress without errors
+        elif seems_complete:
+            # Task appears complete
             await bot_state.task_client.mark_complete(task.id)
             await update.message.reply_text(
                 f"✅ **Task {task.id} marked as complete!**"
             )
             return True
 
-        elif not REQUIRE_APPROVAL:
-            # Auto-continue enabled, no errors, ask AI if it's done
+        elif not REQUIRE_APPROVAL and used_tools:
+            # Auto-continue enabled, made progress with tools but not obviously complete
+            # Ask AI if more work is needed
             await update.message.reply_text("🔍 **Checking if task is complete...**")
 
             check_prompt = f"""Task: {task.title}
@@ -197,25 +215,24 @@ Description: {task.description[:300]}
 Agent's work result:
 {response.content[:800]}
 
-Is this task complete? Reply with ONLY:
+Analyze if this task is complete. Reply with ONE word:
 - "COMPLETE" if the task is fully done
-- "INCOMPLETE: <reason>" if more work is needed"""
+- "CONTINUE" if more work is needed on this task"""
 
             check = await bot_state.agent.run(check_prompt, continue_session=False)
             check_result = check.content.strip().upper()
 
-            if "COMPLETE" in check_result and "INCOMPLETE" not in check_result:
+            if "COMPLETE" in check_result:
                 await bot_state.task_client.mark_complete(task.id)
                 await update.message.reply_text(
-                    f"✅ **Task {task.id} marked as complete!**\n"
-                    f"AI verification: {check.content[:200]}"
+                    f"✅ **Task {task.id} marked as complete!**"
                 )
                 return True
             else:
+                # Task needs more work
                 await update.message.reply_text(
-                    f"⏸️ **Task needs more work**\n"
-                    f"AI says: {check.content[:300]}\n\n"
-                    "Use `/retry` to continue or `/next` to skip"
+                    f"🔄 **Task {task.id} needs more work**\n"
+                    "Continuing..."
                 )
                 return False
         else:
@@ -237,13 +254,14 @@ Is this task complete? Reply with ONLY:
         return False
 
 
-async def autonomous_loop(update: Update, depth: int = 0):
+async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0):
     """
     Main autonomous loop - works through tasks automatically.
 
     Args:
         update: Telegram update object
         depth: Recursion depth to prevent infinite loops
+        retry_count: Number of retries on current task
     """
     if depth > 20:
         await update.message.reply_text(
@@ -256,8 +274,11 @@ async def autonomous_loop(update: Update, depth: int = 0):
         await update.message.reply_text("⏸️ Autonomous mode paused")
         return
 
-    # Get next task
-    next_task = await bot_state.task_client.get_next_task()
+    # Get next task (or continue current task)
+    if retry_count == 0:
+        next_task = await bot_state.task_client.get_next_task()
+    else:
+        next_task = bot_state.current_task
 
     if not next_task:
         await update.message.reply_text(
@@ -271,13 +292,27 @@ async def autonomous_loop(update: Update, depth: int = 0):
     # Work on the task
     completed = await work_on_task(next_task, update)
 
-    # If auto-continue is enabled and task completed, get next task
-    if bot_state.auto_continue and completed and not bot_state.paused:
-        await update.message.reply_text(
-            "🔄 **Auto-continuing to next task...**"
-        )
-        # Recursive call
-        await autonomous_loop(update, depth + 1)
+    # If auto-continue is enabled
+    if bot_state.auto_continue and not bot_state.paused:
+        if completed:
+            # Task completed, move to next
+            await update.message.reply_text(
+                "🔄 **Auto-continuing to next task...**"
+            )
+            await autonomous_loop(update, depth + 1, retry_count=0)
+        elif retry_count < 3:
+            # Task not complete but no critical error - retry
+            await update.message.reply_text(
+                f"🔄 **Retrying task {next_task.id}** (attempt {retry_count + 2}/4)"
+            )
+            await autonomous_loop(update, depth, retry_count + 1)
+        else:
+            # Max retries reached
+            await update.message.reply_text(
+                f"⏸️ **Task {next_task.id} needs attention**\n"
+                f"Tried {retry_count + 1} times.\n\n"
+                "Use `/retry` to try again, `/complete` to mark done, or `/next` to skip"
+            )
     elif not completed:
         await update.message.reply_text(
             "⏸️ **Pausing for user input**\n"
