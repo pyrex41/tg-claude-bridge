@@ -221,11 +221,19 @@ Be thorough and transparent about what you're doing. Use tools as needed."""
             "successfully implemented", "all done", "implementation complete",
             "all tests pass", "fully implemented", "task is complete",
             "production-ready", "now fully implemented", "deployment ready",
-            "ready to deploy", "ready for production"
+            "ready to deploy", "ready for production", "fully implemented and ready",
+            "all subtasks marked complete", "marked complete in task master"
         ]
 
         content_lower = response.content.lower()
         seems_complete = any(pattern in content_lower for pattern in completion_patterns)
+
+        # Check for explicit completion statements (stronger signal)
+        explicit_complete = any([
+            "is fully implemented" in content_lower,
+            "ready for production use" in content_lower,
+            "all subtasks marked complete" in content_lower
+        ])
 
         # Check for actual error indicators (not just the word "error" which could be in normal text)
         # Look for patterns that indicate real problems
@@ -237,11 +245,15 @@ Be thorough and transparent about what you're doing. Use tools as needed."""
 
         has_errors = any(pattern in content_lower for pattern in error_patterns)
 
+        # If explicitly complete, ignore error indicators (they're likely from prior context)
+        if explicit_complete:
+            has_errors = False
+
         # Check tool usage - if tools were used successfully, likely made progress
         used_tools = len(response.tool_calls) > 0
 
         # Decision logic
-        if has_errors:
+        if has_errors and not explicit_complete:
             # Has errors - ask AI to analyze and provide guidance
             await update.message.reply_text(
                 f"⚠️ **Agent encountered issues**\n"
@@ -287,8 +299,8 @@ Respond with just one word: CONTINUE, BLOCKED, or COMPLETE"""
                 )
                 return True
 
-        elif seems_complete:
-            # Task appears complete
+        elif seems_complete or explicit_complete:
+            # Task appears complete or explicitly stated as complete
             await bot_state.task_client.mark_complete(task.id)
             await update.message.reply_text(
                 f"✅ **Task {task.id} marked as complete!**"
