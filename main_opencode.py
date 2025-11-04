@@ -254,50 +254,30 @@ Be thorough and transparent about what you're doing. Use tools as needed."""
 
         # Decision logic
         if has_errors and not explicit_complete:
-            # Has errors - ask AI to analyze and provide guidance
-            await update.message.reply_text(
-                f"⚠️ **Agent encountered issues**\n"
-                "Analyzing response..."
-            )
+            # Has errors - check if they're blocking
+            # Look at last 500 chars to see if agent wrapped up or is stuck
+            tail = response.content[-500:].lower()
 
-            # Use a quick AI call to decide what to do next
-            analysis_prompt = f"""The agent was working on: {task.title}
+            blocking_indicators = [
+                "cannot proceed", "need help", "require", "manual intervention",
+                "not installed", "missing", "dependency"
+            ]
 
-Agent's response:
-{response.content[:1000]}
+            is_blocked = any(indicator in tail for indicator in blocking_indicators)
 
-The response indicates errors or issues. Analyze the situation:
-
-CONTINUE - If the agent is making progress and just needs more iterations to complete the task
-BLOCKED - If there's a critical error that requires human intervention
-COMPLETE - If the errors were handled and the task is actually done
-
-Respond with just one word: CONTINUE, BLOCKED, or COMPLETE"""
-
-            analysis = await bot_state.agent.run(analysis_prompt, continue_session=False)
-            decision = analysis.content.strip().upper()
-
-            if "CONTINUE" in decision:
+            if is_blocked:
                 await update.message.reply_text(
-                    f"🔄 **Continuing work on task {task.id}**\n"
-                    "Agent needs more iterations..."
-                )
-                # Return False but don't stop - the autonomous loop will retry
-                return False
-            elif "BLOCKED" in decision:
-                await update.message.reply_text(
-                    f"🚫 **Task {task.id} blocked**\n"
-                    f"Reason: {analysis.content[:200]}\n\n"
+                    f"🚫 **Task {task.id} appears blocked**\n"
                     "Moving to next task..."
                 )
                 await bot_state.task_client.set_status(task.id, "blocked")
-                return True  # Move to next task
-            else:  # COMPLETE
-                await bot_state.task_client.mark_complete(task.id)
-                await update.message.reply_text(
-                    f"✅ **Task {task.id} marked as complete!**"
-                )
                 return True
+            else:
+                # Errors but not blocking - continue working
+                await update.message.reply_text(
+                    f"⚠️ **Minor issues detected, continuing work on task {task.id}**"
+                )
+                return False
 
         elif seems_complete or explicit_complete:
             # Task appears complete or explicitly stated as complete
