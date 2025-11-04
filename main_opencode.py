@@ -254,28 +254,52 @@ Be thorough and transparent about what you're doing. Use tools as needed."""
 
         # Decision logic
         if has_errors and not explicit_complete:
-            # Has errors - check if they're blocking
-            # Look at last 500 chars to see if agent wrapped up or is stuck
-            tail = response.content[-500:].lower()
+            # Has errors - use fast LLM to analyze just the tail
+            tail = response.content[-800:]  # Last 800 chars for context
 
-            blocking_indicators = [
-                "cannot proceed", "need help", "require", "manual intervention",
-                "not installed", "missing", "dependency"
-            ]
+            # Create a fast agent for quick analysis
+            from opencode_agent import OpenCodeAgent
+            fast_agent = OpenCodeAgent(model="xai/grok-code-fast-1", working_dir=WORKING_DIRECTORY)
 
-            is_blocked = any(indicator in tail for indicator in blocking_indicators)
+            analysis_prompt = f"""Task: {task.title}
 
-            if is_blocked:
+Agent's conclusion (last 800 chars):
+{tail}
+
+Quick analysis - reply with ONE word only:
+- COMPLETE: Task is done, errors were handled
+- CONTINUE: Making progress, needs more work
+- BLOCKED: Critical error, cannot proceed
+
+Reply:"""
+
+            try:
+                analysis = await fast_agent.run(analysis_prompt, continue_session=False)
+                decision = analysis.content.strip().upper()
+
+                if "COMPLETE" in decision:
+                    await bot_state.task_client.mark_complete(task.id)
+                    await update.message.reply_text(
+                        f"✅ **Task {task.id} marked as complete!**"
+                    )
+                    return True
+                elif "BLOCKED" in decision:
+                    await update.message.reply_text(
+                        f"🚫 **Task {task.id} appears blocked**\n"
+                        "Moving to next task..."
+                    )
+                    await bot_state.task_client.set_status(task.id, "blocked")
+                    return True
+                else:  # CONTINUE
+                    await update.message.reply_text(
+                        f"⚠️ **Minor issues, continuing work on task {task.id}**"
+                    )
+                    return False
+            except Exception as e:
+                logger.error(f"Fast LLM analysis failed: {e}")
+                # Fallback to simple logic
                 await update.message.reply_text(
-                    f"🚫 **Task {task.id} appears blocked**\n"
-                    "Moving to next task..."
-                )
-                await bot_state.task_client.set_status(task.id, "blocked")
-                return True
-            else:
-                # Errors but not blocking - continue working
-                await update.message.reply_text(
-                    f"⚠️ **Minor issues detected, continuing work on task {task.id}**"
+                    f"⚠️ **Issues detected, continuing work on task {task.id}**"
                 )
                 return False
 
