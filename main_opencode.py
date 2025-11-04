@@ -71,9 +71,14 @@ def require_auth(func):
     return wrapper
 
 
-async def work_on_task(task: Task, update: Update) -> bool:
+async def work_on_task(task: Task, update: Update, extra_context: str = "") -> bool:
     """
     Work on a specific task using OpenCode agent.
+
+    Args:
+        task: The task to work on
+        update: Telegram update object
+        extra_context: Additional context/instructions from user
 
     Returns True if task completed successfully, False otherwise.
     """
@@ -101,8 +106,11 @@ Please:
 4. Verify completion
 5. Report back with results
 
-Be thorough and transparent about what you're doing. Use tools as needed.
-"""
+Be thorough and transparent about what you're doing. Use tools as needed."""
+
+    # Add extra context if provided
+    if extra_context:
+        prompt += f"\n\n**Additional Context/Instructions:**\n{extra_context}"
 
     try:
         # Track streaming output
@@ -320,7 +328,7 @@ Respond with just one word: CONTINUE, BLOCKED, or COMPLETE"""
         return False
 
 
-async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0):
+async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0, extra_context: str = ""):
     """
     Main autonomous loop - works through tasks automatically.
 
@@ -328,6 +336,7 @@ async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0):
         update: Telegram update object
         depth: Recursion depth to prevent infinite loops
         retry_count: Number of retries on current task
+        extra_context: Additional context/instructions from user
     """
     if depth > 20:
         await update.message.reply_text(
@@ -355,23 +364,24 @@ async def autonomous_loop(update: Update, depth: int = 0, retry_count: int = 0):
     # Store current task
     bot_state.current_task = next_task
 
-    # Work on the task
-    completed = await work_on_task(next_task, update)
+    # Work on the task (only use extra_context on first attempt, not retries)
+    task_context = extra_context if retry_count == 0 else ""
+    completed = await work_on_task(next_task, update, task_context)
 
     # If auto-continue is enabled
     if bot_state.auto_continue and not bot_state.paused:
         if completed:
-            # Task completed, move to next
+            # Task completed, move to next (don't pass context to next task)
             await update.message.reply_text(
                 "🔄 **Auto-continuing to next task...**"
             )
-            await autonomous_loop(update, depth + 1, retry_count=0)
+            await autonomous_loop(update, depth + 1, retry_count=0, extra_context="")
         elif retry_count < 3:
             # Task not complete but no critical error - retry
             await update.message.reply_text(
                 f"🔄 **Retrying task {next_task.id}** (attempt {retry_count + 2}/4)"
             )
-            await autonomous_loop(update, depth, retry_count + 1)
+            await autonomous_loop(update, depth, retry_count + 1, extra_context=extra_context)
         else:
             # Max retries reached
             await update.message.reply_text(
@@ -414,20 +424,39 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @require_auth
 async def cmd_auto(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start autonomous mode."""
+    """Start autonomous mode with optional extra context."""
     bot_state.paused = False
-    await update.message.reply_text(
-        "🚀 **Starting autonomous mode...**\n"
-        "I'll work through tasks automatically.\n"
-        "Use `/pause` to stop at any time."
-    )
-    await autonomous_loop(update)
+
+    # Extract extra context from message (anything after /auto command)
+    extra_context = " ".join(context.args) if context.args else ""
+
+    if extra_context:
+        await update.message.reply_text(
+            f"🚀 **Starting autonomous mode...**\n"
+            f"I'll work through tasks automatically.\n"
+            f"**Extra context:** {extra_context}\n\n"
+            "Use `/pause` to stop at any time."
+        )
+    else:
+        await update.message.reply_text(
+            "🚀 **Starting autonomous mode...**\n"
+            "I'll work through tasks automatically.\n"
+            "Use `/pause` to stop at any time."
+        )
+
+    await autonomous_loop(update, extra_context=extra_context)
 
 
 @require_auth
 async def cmd_next(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manually trigger next task."""
-    await autonomous_loop(update)
+    """Manually trigger next task with optional extra context."""
+    # Extract extra context from message
+    extra_context = " ".join(context.args) if context.args else ""
+
+    if extra_context:
+        await update.message.reply_text(f"📝 **Extra context:** {extra_context}")
+
+    await autonomous_loop(update, extra_context=extra_context)
 
 
 @require_auth
@@ -545,15 +574,25 @@ async def cmd_complete(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @require_auth
 async def cmd_retry(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Retry current task."""
+    """Retry current task with optional extra context."""
     if not bot_state.current_task:
         await update.message.reply_text("❌ No current task to retry")
         return
 
-    await update.message.reply_text(
-        f"🔄 Retrying task {bot_state.current_task.id}..."
-    )
-    await work_on_task(bot_state.current_task, update)
+    # Extract extra context from message
+    extra_context = " ".join(context.args) if context.args else ""
+
+    if extra_context:
+        await update.message.reply_text(
+            f"🔄 Retrying task {bot_state.current_task.id}...\n"
+            f"**Extra context:** {extra_context}"
+        )
+    else:
+        await update.message.reply_text(
+            f"🔄 Retrying task {bot_state.current_task.id}..."
+        )
+
+    await work_on_task(bot_state.current_task, update, extra_context)
 
 
 @require_auth
