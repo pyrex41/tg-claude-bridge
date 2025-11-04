@@ -154,35 +154,27 @@ class OpenCodeAgent:
                 cwd=self.working_dir
             )
 
-            stdout, stderr = await process.communicate()
-
-            if process.returncode != 0:
-                error_msg = stderr.decode() if stderr else "Unknown error"
-                logger.error(f"OpenCode error: {error_msg}")
-                return OpenCodeResponse(
-                    content=f"Error: {error_msg}",
-                    model=self.model
-                )
-
-            # Parse JSON output
-            output = stdout.decode()
-
-            # OpenCode JSON format: stream of JSON events
-            # We need to collect all content and events
+            # Stream output line by line for real-time updates
             content_parts = []
             tool_calls = []
             all_events = []
             session_id = None
 
-            for line in output.strip().split('\n'):
-                if not line.strip():
+            # Read stdout line by line as it arrives
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+
+                line_str = line.decode().strip()
+                if not line_str:
                     continue
 
                 try:
-                    event = json.loads(line)
+                    event = json.loads(line_str)
                     all_events.append(event)
 
-                    # Parse and send event via callback
+                    # Parse and send event via callback IN REAL-TIME
                     parsed_event = self.parse_event(event)
                     if parsed_event and event_callback:
                         await event_callback(parsed_event)
@@ -204,8 +196,21 @@ class OpenCodeAgent:
 
                 except json.JSONDecodeError:
                     # Not JSON, might be direct text output
-                    logger.warning(f"Failed to parse JSON line: {line[:100]}")
-                    content_parts.append(line)
+                    logger.warning(f"Failed to parse JSON line: {line_str[:100]}")
+                    content_parts.append(line_str)
+
+            # Wait for process to complete and check return code
+            await process.wait()
+
+            if process.returncode != 0:
+                # Read any stderr
+                stderr = await process.stderr.read()
+                error_msg = stderr.decode() if stderr else "Unknown error"
+                logger.error(f"OpenCode error: {error_msg}")
+                return OpenCodeResponse(
+                    content=f"Error: {error_msg}",
+                    model=self.model
+                )
 
             # Combine content
             final_content = '\n'.join(content_parts) if content_parts else "No response content"

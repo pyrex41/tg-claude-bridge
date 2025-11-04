@@ -160,17 +160,38 @@ Be thorough and transparent about what you're doing. Use tools as needed.
         # Send final accumulated text if we have a message to update
         if current_message and accumulated_text:
             try:
-                await current_message.edit_text(
-                    f"💭 **Agent output:**\n{accumulated_text[:4000]}"
-                )
-            except:
-                pass
+                # Split into chunks if too long (Telegram limit is 4096)
+                full_text = f"💭 **Agent output:**\n{accumulated_text}"
+                if len(full_text) <= 4096:
+                    await current_message.edit_text(full_text)
+                else:
+                    # Update first message with truncated indicator
+                    await current_message.edit_text(
+                        f"💭 **Agent output:**\n{accumulated_text[:3900]}...\n\n(continues below)"
+                    )
+                    # Send continuation in chunks
+                    remaining = accumulated_text[3900:]
+                    while remaining:
+                        chunk = remaining[:4000]
+                        remaining = remaining[4000:]
+                        await update.message.reply_text(chunk)
+            except Exception as e:
+                logger.error(f"Failed to send final text: {e}")
 
-        # Send agent's final response to Telegram
-        if response.content and len(response.content) > 20:
-            await update.message.reply_text(
-                f"🤖 **Agent:**\n{response.content[:4000]}"
-            )
+        # Only send final response if we didn't already show it via streaming
+        elif response.content and len(response.content) > 20:
+            # Split into chunks if needed
+            full_text = f"🤖 **Agent:**\n{response.content}"
+            if len(full_text) <= 4096:
+                await update.message.reply_text(full_text)
+            else:
+                # Send in chunks
+                await update.message.reply_text(f"🤖 **Agent:**\n{response.content[:3900]}...")
+                remaining = response.content[3900:]
+                while remaining:
+                    chunk = remaining[:4000]
+                    remaining = remaining[4000:]
+                    await update.message.reply_text(chunk)
 
         # Check if task appears complete
         # Look for strong completion indicators
