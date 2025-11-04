@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from task_master_client import TaskMasterClient, Task
-from opencode_agent import OpenCodeAgent, AgentResponse
+from opencode_agent import OpenCodeAgent, OpenCodeResponse
 from bot_workflows import (
     TaskDecomposer, TaskMasterLogger, PlannerAgent,
     VerificationAgent, ReflectionAgent,

@@ -22,4 +22,15 @@ tg-bridge-langchain = "main_langchain:main"
 tg-bridge-legacy = "main:main"
 
 [tool.setuptools]
-py-modules = ["main_opencode", "main_langchain", "main", "opencode_agent", "task_master_client"]
+py-modules = [
+    "main_opencode",
+    "main_langchain",
+    "main",
+    "main_mcp",
+    "main_simple",
+    "opencode_agent",
+    "task_master_client",
+    "bot_orchestrator",
+    "bot_workflows",
+    "bot_recovery"
+]
