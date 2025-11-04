@@ -413,6 +413,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/next [context] - Work on next task manually\n"
         "/pause - Pause autonomous mode\n"
         "/resume - Resume autonomous mode\n"
+        "/stop - Stop current task and clear session\n"
         "/status - Show current status\n"
         "/tasks - List all pending tasks\n"
         "/sync - Verify task-master is in sync with code\n"
@@ -575,6 +576,31 @@ async def cmd_complete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if bot_state.auto_continue:
         await update.message.reply_text("🔄 Moving to next task...")
         await autonomous_loop(update)
+
+
+@require_auth
+async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Stop current task and autonomous mode, kill any running processes."""
+    # Set paused flag to stop loops
+    bot_state.paused = True
+
+    # Try to kill any running opencode processes
+    try:
+        import subprocess
+        subprocess.run(["pkill", "-f", "opencode run"], check=False)
+        await update.message.reply_text("⏹️ Killing running agent processes...")
+    except Exception as e:
+        logger.warning(f"Failed to kill processes: {e}")
+
+    # Clear state
+    bot_state.current_task = None
+    await bot_state.agent.clear_session()
+
+    await update.message.reply_text(
+        "🛑 **Stopped**\n"
+        "All processes killed, task cleared, autonomous mode paused.\n"
+        "Use `/auto` to restart or `/next` for next task."
+    )
 
 
 @require_auth
@@ -819,6 +845,7 @@ def main():
     application.add_handler(CommandHandler("next", cmd_next))
     application.add_handler(CommandHandler("pause", cmd_pause))
     application.add_handler(CommandHandler("resume", cmd_resume))
+    application.add_handler(CommandHandler("stop", cmd_stop))
     application.add_handler(CommandHandler("status", cmd_status))
     application.add_handler(CommandHandler("tasks", cmd_tasks))
     application.add_handler(CommandHandler("complete", cmd_complete))
