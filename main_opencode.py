@@ -205,7 +205,9 @@ Be thorough and transparent about what you're doing. Use tools as needed."""
         completion_patterns = [
             "task completed", "task finished", "successfully completed",
             "successfully implemented", "all done", "implementation complete",
-            "all tests pass", "fully implemented", "task is complete"
+            "all tests pass", "fully implemented", "task is complete",
+            "production-ready", "now fully implemented", "deployment ready",
+            "ready to deploy", "ready for production"
         ]
 
         content_lower = response.content.lower()
