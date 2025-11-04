@@ -129,22 +129,25 @@ Be thorough and transparent about what you're doing. Use tools as needed.
             )
 
         # Check if task appears complete
-        # Look for completion indicators
-        completion_indicators = [
-            "completed", "finished", "done", "success", "successful",
-            "implemented", "all tests pass", "verified", "created", "added"
+        # Look for strong completion indicators
+        completion_patterns = [
+            "task completed", "task finished", "successfully completed",
+            "successfully implemented", "all done", "implementation complete",
+            "all tests pass", "fully implemented", "task is complete"
         ]
 
         content_lower = response.content.lower()
-        seems_complete = any(indicator in content_lower for indicator in completion_indicators)
+        seems_complete = any(pattern in content_lower for pattern in completion_patterns)
 
-        # Check for error indicators
-        error_indicators = [
-            "error", "failed", "blocked", "cannot", "unable", "need help",
-            "couldn't", "didn't work", "issue"
+        # Check for actual error indicators (not just the word "error" which could be in normal text)
+        # Look for patterns that indicate real problems
+        error_patterns = [
+            "error:", "failed to", "failed:", "blocked by", "cannot complete",
+            "unable to complete", "need help", "couldn't", "didn't work",
+            "critical error", "exception:", "traceback", "fatal"
         ]
 
-        has_errors = any(indicator in content_lower for indicator in error_indicators)
+        has_errors = any(pattern in content_lower for pattern in error_patterns)
 
         # Check tool usage - if tools were used successfully, likely made progress
         used_tools = len(response.tool_calls) > 0
