@@ -124,8 +124,22 @@ Be thorough and transparent about what you're doing. Use tools as needed."""
             nonlocal current_message, accumulated_text, last_update_time
 
             try:
-                # Send tool/file/error/step events immediately
+                # When we get a tool/file/error/step event, flush any accumulated text first
                 if event.type in ['tool', 'file', 'error', 'step']:
+                    # Flush accumulated text as a final message
+                    if accumulated_text and current_message:
+                        try:
+                            await current_message.edit_text(
+                                f"💭 **Agent:**\n{accumulated_text[-3900:]}"
+                            )
+                        except:
+                            pass
+                        # Reset for next chunk
+                        current_message = None
+                        accumulated_text = ""
+                        last_update_time = 0
+
+                    # Now send the tool/file/error/step event
                     await update.message.reply_text(event.message)
 
                 # Stream text content as it arrives
